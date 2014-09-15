@@ -1,0 +1,5 @@
+[package]
+
+name = "iron-repl"
+version = "0.0.1"
+authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
