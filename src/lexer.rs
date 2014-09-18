@@ -5,6 +5,7 @@ pub enum Token {
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
+    Comma,
     Ident(String),
     Number(f64),
     Operator(String)
@@ -16,7 +17,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     let mut result = Vec::new();
 
-    let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<operator>\S)");
+    let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
     for cap in token_re.captures_iter(preprocessed.as_slice()) {
 
         let token = if !cap.name("ident").is_empty() {
@@ -36,6 +37,8 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             OpeningParenthesis
         } else if !cap.name("clpar").is_empty() {
             ClosingParenthesis
+        } else if !cap.name("comma").is_empty() {
+            Comma
         } else {
             Operator(cap.name("operator").to_string())
         };
@@ -48,7 +51,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
 #[test]
 fn test_tokenize() {
-    let result = tokenize("#testing example\nextern sin(ar_g1);#comment\n\tdef \ta 1.1 2 2.2.2");
+    let result = tokenize("#testing example\nextern sin(ar_g1);#comment\n\tdef \ta 1.1, 2 2.2.2");
     assert_eq!(vec![Extern,
                     Ident("sin".to_string()),
                     OpeningParenthesis,
@@ -58,6 +61,7 @@ fn test_tokenize() {
                     Def,
                     Ident("a".to_string()),
                     Number(1.1),
+                    Comma,
                     Number(2.0),
                     Number(2.2),
                     Operator(".".to_string()),
