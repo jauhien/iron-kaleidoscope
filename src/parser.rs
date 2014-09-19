@@ -33,7 +33,6 @@ pub struct Function {
 
 #[deriving(PartialEq, Clone, Show)]
 pub enum ASTNode {
-    ExpressionNode(Expression),
     ExternNode(Prototype),
     FunctionNode(Function)
 }
@@ -151,7 +150,10 @@ fn parse_expression(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, s
         Bad(message) => return Err(message)
     };
 
-    let node = ExpressionNode(expression);
+    let prototype = Prototype{name: "".to_string(), args: vec![]};
+    let lambda = Function{prototype: prototype, body: expression};
+
+    let node = FunctionNode(lambda);
     parsed_tree.push(node);
 
     Ok(true)
@@ -399,9 +401,10 @@ fn parse_binary_expr(expr_precedence : i32, lhs : &Expression, tokens : &mut Vec
 
 #[test]
 fn test_parse() {
-    //extern fn_3 (a b, c); def test(a) fn_3(1, a + 3 * 4 3) + 2 * 1 <
+    //1; extern fn_3 (a b, c); def test(a) fn_3(1, a + 3 * 4 3) + 2 * 1 <
     // 10 * (1 + 2 * 3); def a() (1 + 2) +
-    let input = vec![Extern,
+    let input = vec![Number(1.0),
+                     Extern,
                      Ident("fn_3".to_string()),
                      OpeningParenthesis,
                      Ident("a".to_string()),
@@ -454,7 +457,8 @@ fn test_parse() {
 
     let output = parse(input.as_slice(), &[], &default_parser_settings());
 
-    assert_eq!(Ok((vec![ExternNode(Prototype{ name: "fn_3".to_string(), args: vec! ["a".to_string(), "b".to_string(), "c".to_string()] }),
+    assert_eq!(Ok((vec![FunctionNode(Function { prototype: Prototype { name: "".to_string(), args: vec![] }, body: Literal(1.0) }),
+        ExternNode(Prototype{ name: "fn_3".to_string(), args: vec! ["a".to_string(), "b".to_string(), "c".to_string()] }),
                     FunctionNode(Function { prototype: Prototype { name: "test".to_string(), args: vec!["a".to_string()] }, body: Binary("<".to_string(), box Binary("+".to_string(), box Call("fn_3".to_string(), vec![Literal(1.0), Binary("+".to_string(), box Variable("a".to_string()), box Binary("*".to_string(), box Literal(3.0), box Literal(4.0))), Literal(3.0)]), box Binary("*".to_string(), box Literal(2.0), box Literal(1.0))), box Binary("*".to_string(), box Literal(10.0), box Binary("+".to_string(), box Literal(1.0), box Binary("*".to_string(), box Literal(2.0), box Literal(3.0))))) })],
                    vec![Def, Ident("a".to_string()), OpeningParenthesis, ClosingParenthesis, OpeningParenthesis, Number(1.0), Operator("+".to_string()), Number(2.0), ClosingParenthesis, Operator("+".to_string())])),
                output)
