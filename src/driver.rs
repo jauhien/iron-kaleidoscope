@@ -4,6 +4,8 @@ use lexer::*;
 use parser::*;
 
 pub fn main_loop() {
+    let parser_settings = default_parser_settings();
+
     'main: loop {
         print!(">");
         let mut input = io::stdin().read_line().ok().expect("Failed to read line");
@@ -16,7 +18,7 @@ pub fn main_loop() {
         loop {
             let tokens = tokenize(input.as_slice());
             prev.push_all_move(tokens);
-            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &default_parser_settings());
+            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &parser_settings);
             match parsing_result {
                 Ok((parsed_ast, rest)) => {
                     ast.push_all_move(parsed_ast);
