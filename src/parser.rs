@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use lexer::*;
 
-
 pub struct ParserSettings {
     operator_precedence: HashMap<String, i32>
 }
-
 
 #[deriving(PartialEq, Clone, Show)]
 pub enum Expression {
@@ -16,13 +14,11 @@ pub enum Expression {
     Call(String, Vec<Expression>)
 }
 
-
 #[deriving(PartialEq, Clone, Show)]
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>
 }
-
 
 #[deriving(PartialEq, Clone, Show)]
 pub struct Function {
@@ -30,16 +26,13 @@ pub struct Function {
     pub body: Expression
 }
 
-
 #[deriving(PartialEq, Clone, Show)]
 pub enum ASTNode {
     ExternNode(Prototype),
     FunctionNode(Function)
 }
 
-
 pub type ParsingResult = Result<(Vec<ASTNode>, Vec<Token>), String>;
-
 
 pub fn default_parser_settings() -> ParserSettings {
     let mut operator_precedence = HashMap::new();
@@ -50,7 +43,6 @@ pub fn default_parser_settings() -> ParserSettings {
 
     ParserSettings{operator_precedence: operator_precedence}
 }
-
 
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &ParserSettings) -> ParsingResult {
     let mut rest = Vec::from_slice(tokens);
@@ -81,18 +73,15 @@ pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &ParserSett
     Ok((ast, rest))
 }
 
-
 enum PartParsingResult<T> {
     Good(T, Vec<Token>),
     NotComplete,
     Bad(String)
 }
 
-
 fn error<T>(message : &str) -> PartParsingResult<T> {
     Bad(message.to_string())
 }
-
 
 fn parse_function(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, settings : &ParserSettings) -> Result<bool, String> {
     tokens.pop();
@@ -123,7 +112,6 @@ fn parse_function(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, set
     Ok(true)
 }
 
-
 fn parse_extern(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, settings : &ParserSettings) -> Result<bool, String> {
     tokens.pop();
 
@@ -142,7 +130,6 @@ fn parse_extern(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, setti
     Ok(true)
 }
 
-
 fn parse_expression(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, settings : &ParserSettings) -> Result<bool, String> {
     let expression = match parse_expr(tokens, settings) {
         Good(expr, _) => expr,
@@ -158,7 +145,6 @@ fn parse_expression(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, s
 
     Ok(true)
 }
-
 
 #[allow(unused_variable)]
 fn parse_prototype(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Prototype> {
@@ -207,7 +193,6 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Part
     Good(prototype, proto_tokens)
 }
 
-
 fn parse_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     let (lhs, mut parsed_tokens) = match parse_primary_expr(tokens, settings) {
         Good(lhs_expr, lhs_toks) => (lhs_expr, lhs_toks),
@@ -229,7 +214,6 @@ fn parse_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsi
     }
 }
 
-
 fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     match tokens.last() {
         Some(&Ident(_)) => parse_ident_expr(tokens, settings),
@@ -239,7 +223,6 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
         _ => error("unknow token when expecting an expression")
     }
 }
-
 
 fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     let name = match tokens.pop() {
@@ -293,7 +276,6 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Par
     Good(expr, ident_tokens)
 }
 
-
 #[allow(unused_variable)]
 fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     let value = match tokens.pop() {
@@ -304,7 +286,6 @@ fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
 
     Good(Literal(value), vec![Number(value)])
 }
-
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();
@@ -332,7 +313,6 @@ fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) 
         Bad(message) => Bad(message)
     }
 }
-
 
 fn parse_binary_expr(expr_precedence : i32, lhs : &Expression, tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
     let mut result = lhs.clone();
@@ -397,7 +377,6 @@ fn parse_binary_expr(expr_precedence : i32, lhs : &Expression, tokens : &mut Vec
 
     Good(result, parsed_tokens)
 }
-
 
 #[test]
 fn test_parse() {
