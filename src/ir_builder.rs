@@ -18,6 +18,12 @@ pub trait IRBuilder {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult;
 }
 
+pub fn dump_value(value: llvm::ValueRef) {
+    unsafe {
+        llvm::LLVMDumpValue(value);
+    }
+}
+
 impl Context {
     pub fn new(module_name : &str) -> Context {
         unsafe {
