@@ -40,9 +40,10 @@ pub fn main_loop() {
         }
 
         match ast.codegen(&mut context) {
-            Ok(_) => context.dump(),
+            Ok(value) => dump_value(value),
             Err(message) => println!("Error occured: {}", message)
         }
-
     }
+
+    context.dump();
 }
