@@ -230,6 +230,7 @@ impl IRBuilder for Function {
             llvm::LLVMBuildRet(context.builder, body);
         }
 
+        context.named_values.clear();
         Ok(function)
     }
 }
