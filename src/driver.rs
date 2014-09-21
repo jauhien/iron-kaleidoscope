@@ -1,10 +1,12 @@
 use std::io;
 
+use ir_builder::*;
 use lexer::*;
 use parser::*;
 
 pub fn main_loop() {
     let parser_settings = default_parser_settings();
+    let mut context = Context::new("main");
 
     'main: loop {
         print!(">");
@@ -37,6 +39,10 @@ pub fn main_loop() {
             input = io::stdin().read_line().ok().expect("Failed to read line");
         }
 
-        println!("ast: {}", ast);
+        match ast.codegen(&mut context) {
+            Ok(_) => context.dump(),
+            Err(message) => println!("Error occured: {}", message)
+        }
+
     }
 }
