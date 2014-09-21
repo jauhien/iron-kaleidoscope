@@ -19,15 +19,15 @@ pub enum Expression {
 
 #[deriving(PartialEq, Clone, Show)]
 pub struct Prototype {
-    name: String,
-    args: Vec<String>
+    pub name: String,
+    pub args: Vec<String>
 }
 
 
 #[deriving(PartialEq, Clone, Show)]
 pub struct Function {
-    prototype: Prototype,
-    body: Expression
+    pub prototype: Prototype,
+    pub body: Expression
 }
 
 
