@@ -1,14 +1,17 @@
 use std::collections::HashMap;
-use libc::c_uint;
+use libc::{c_char, c_uint};
 
 use rustc::lib::llvm;
 
+use missing_llvm_bindings::*;
 use parser::*;
 
 pub struct Context {
     context: llvm::ContextRef,
     module: llvm::ModuleRef,
     builder: llvm::BuilderRef,
+    exec_engine: llvm::ExecutionEngineRef,
+    function_passmanager: llvm::PassManagerRef,
     named_values: HashMap<String, llvm::ValueRef>
 }
 
@@ -27,6 +30,8 @@ pub fn dump_value(value: llvm::ValueRef) {
 impl Context {
     pub fn new(module_name : &str) -> Context {
         unsafe {
+            LLVMInitializeNativeTarget();
+
             let context = llvm::LLVMContextCreate();
             let module = module_name.with_c_str(|buf| {
                 llvm::LLVMModuleCreateWithNameInContext(buf, context)
@@ -34,7 +39,33 @@ impl Context {
             let builder = llvm::LLVMCreateBuilderInContext(context);
             let named_values = HashMap::new();
 
-            Context{context: context, module: module, builder: builder, named_values: named_values}
+            let mut exec_engine = 0 as llvm::ExecutionEngineRef;
+            let mut error = 0 as *const c_char;
+            LLVMCreateExecutionEngineForModule(&mut exec_engine, module, &mut error);
+            assert!(exec_engine != 0 as llvm::ExecutionEngineRef);
+
+            let function_passmanager = llvm::LLVMCreateFunctionPassManagerForModule(module);
+
+            let target_data = LLVMGetExecutionEngineTargetData(exec_engine);
+            let data_layout = LLVMCopyStringRepOfTargetData(target_data);
+            llvm::LLVMSetDataLayout(module, data_layout);
+            llvm::LLVMAddTargetData(target_data, function_passmanager);
+            LLVMDisposeMessage(data_layout);
+
+            llvm::LLVMAddVerifierPass(function_passmanager);
+            llvm::LLVMAddBasicAliasAnalysisPass(function_passmanager);
+            llvm::LLVMAddInstructionCombiningPass(function_passmanager);
+            llvm::LLVMAddReassociatePass(function_passmanager);
+            llvm::LLVMAddGVNPass(function_passmanager);
+            llvm::LLVMAddCFGSimplificationPass(function_passmanager);
+            llvm::LLVMInitializeFunctionPassManager(function_passmanager);
+
+            Context{context: context,
+                    module: module,
+                    builder: builder,
+                    exec_engine: exec_engine,
+                    function_passmanager:function_passmanager,
+                    named_values: named_values}
         }
     }
 
@@ -48,8 +79,9 @@ impl Context {
 impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
+            llvm::LLVMDisposePassManager(self.function_passmanager);
+            LLVMDisposeExecutionEngine(self.exec_engine);
             llvm::LLVMDisposeBuilder(self.builder);
-            llvm:: LLVMDisposeModule(self.module);
             llvm::LLVMContextDispose(self.context);
         }
     }
@@ -228,6 +260,7 @@ impl IRBuilder for Function {
             };
 
             llvm::LLVMBuildRet(context.builder, body);
+            llvm::LLVMRunFunctionPassManager(context.function_passmanager, function);
         }
 
         context.named_values.clear();
