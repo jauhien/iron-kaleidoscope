@@ -1,6 +1,6 @@
 use std::io;
 
-use ir_builder::*;
+use builder::*;
 use lexer::*;
 use parser::*;
 
