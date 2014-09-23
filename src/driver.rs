@@ -40,7 +40,11 @@ pub fn main_loop() {
         }
 
         match ast.codegen(&mut context) {
-            Ok((value, _)) => dump_value(value),
+            Ok((value, runnable)) => if runnable {
+                println!("=> {}", run(value, &context))
+            } else {
+                dump_value(value)
+            },
             Err(message) => println!("Error occured: {}", message)
         }
     }
