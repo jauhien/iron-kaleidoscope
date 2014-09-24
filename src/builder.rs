@@ -27,7 +27,17 @@ pub fn dump_value(value: llvm::ValueRef) {
     }
 }
 
+#[no_mangle]
+pub extern fn print(x: f64) -> f64 {
+    println!("> {} <", x);
+    x
+}
+
+#[allow(unused_variable)]
 pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
+    //hack for make linker not to remove print function
+    let x = print;
+
     unsafe {
         let result = LLVMRunFunction(context.exec_engine,
                                      value,
