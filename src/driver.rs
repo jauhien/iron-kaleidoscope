@@ -4,7 +4,15 @@ use builder::*;
 use lexer::*;
 use parser::*;
 
-pub fn main_loop() {
+#[deriving(PartialEq, Clone, Show)]
+pub enum Stage {
+    Tokens,
+    AST,
+    IR,
+    Exec
+}
+
+pub fn main_loop(stage: Stage) {
     let parser_settings = default_parser_settings();
     let mut context = Context::new("main");
 
@@ -19,7 +27,13 @@ pub fn main_loop() {
         let mut prev = Vec::new();
         loop {
             let tokens = tokenize(input.as_slice());
+            if (stage == Tokens) {
+                println!("{}", tokens);
+                continue 'main
+            }
+
             prev.push_all_move(tokens);
+
             let parsing_result = parse(prev.as_slice(), ast.as_slice(), &parser_settings);
             match parsing_result {
                 Ok((parsed_ast, rest)) => {
@@ -39,8 +53,13 @@ pub fn main_loop() {
             input = io::stdin().read_line().ok().expect("Failed to read line");
         }
 
+        if stage == AST {
+            println!("{}", ast);
+            continue
+        }
+
         match ast.codegen(&mut context) {
-            Ok((value, runnable)) => if runnable {
+            Ok((value, runnable)) => if runnable && stage == Exec {
                 println!("=> {}", run(value, &context))
             } else {
                 dump_value(value)
@@ -49,5 +68,7 @@ pub fn main_loop() {
         }
     }
 
-    context.dump();
+    if stage == IR && stage == Exec {
+        context.dump();
+    }
 }

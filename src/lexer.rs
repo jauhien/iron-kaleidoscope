@@ -48,23 +48,3 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     result
 }
-
-#[test]
-fn test_tokenize() {
-    let result = tokenize("#testing example\nextern sin(ar_g1);#comment\n\tdef \ta 1.1, 2 2.2.2");
-    assert_eq!(vec![Extern,
-                    Ident("sin".to_string()),
-                    OpeningParenthesis,
-                    Ident("ar_g1".to_string()),
-                    ClosingParenthesis,
-                    Delimiter,
-                    Def,
-                    Ident("a".to_string()),
-                    Number(1.1),
-                    Comma,
-                    Number(2.0),
-                    Number(2.2),
-                    Operator(".".to_string()),
-                    Number(2.0)],
-               result);
-}
