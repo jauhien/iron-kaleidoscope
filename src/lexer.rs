@@ -2,6 +2,9 @@
 pub enum Token {
     Def,
     Extern,
+    If,
+    Then,
+    Else,
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -24,6 +27,9 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             match cap.name("ident") {
                 "def" => Def,
                 "extern" => Extern,
+                "if" => If,
+                "then" => Then,
+                "else" => Else,
                 ident => Ident(ident.to_string())
             }
         } else if !cap.name("number").is_empty() {
