@@ -204,7 +204,8 @@ impl IRBuilder for Expression {
                                                buf),
                             false))
                     })
-                }
+                },
+                &Conditional{ref cond_expr, ref then_expr, ref else_expr} => return error("not implemented")
             }
         }
     }

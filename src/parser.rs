@@ -11,7 +11,8 @@ pub enum Expression {
     Literal(f64),
     Variable(String),
     Binary(String, Box<Expression>, Box<Expression>),
-    Call(String, Vec<Expression>)
+    Call(String, Vec<Expression>),
+    Conditional{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>}
 }
 
 #[deriving(PartialEq, Clone, Show)]
@@ -218,6 +219,7 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
     match tokens.last() {
         Some(&Ident(_)) => parse_ident_expr(tokens, settings),
         Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&If) => parse_conditional_expr(tokens, settings),
         Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
         None => return NotComplete,
         _ => error("unknow token when expecting an expression")
@@ -285,6 +287,68 @@ fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
     };
 
     Good(Literal(value), vec![Number(value)])
+}
+
+fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut expr_tokens = vec![If];
+    let cond_expr = match parse_expr(tokens, settings) {
+        Good(expr, expr_toks) => {
+            expr_tokens.extend(expr_toks.into_iter());
+            expr
+        },
+        NotComplete => {
+            tokens.extend(expr_tokens.into_iter());
+            return NotComplete
+        },
+        Bad(message) => return Bad(message)
+    };
+
+    match tokens.pop() {
+        Some(Then) => expr_tokens.push(Then),
+        None => {
+            expr_tokens.reverse();
+            tokens.extend(expr_tokens.into_iter());
+            return NotComplete
+        },
+        _ => return error("expected then")
+    }
+
+    let then_expr = match parse_expr(tokens, settings) {
+        Good(expr, expr_toks) => {
+            expr_tokens.extend(expr_toks.into_iter());
+            expr
+        },
+        NotComplete => {
+            tokens.extend(expr_tokens.into_iter());
+            return NotComplete
+        },
+        Bad(message) => return Bad(message)
+    };
+
+    match tokens.pop() {
+        Some(Else) => expr_tokens.push(Else),
+        None => {
+            expr_tokens.reverse();
+            tokens.extend(expr_tokens.into_iter());
+            return NotComplete
+        },
+        _ => return error("expected else")
+    }
+
+    let else_expr = match parse_expr(tokens, settings) {
+        Good(expr, expr_toks) => {
+            expr_tokens.extend(expr_toks.into_iter());
+            expr
+        },
+        NotComplete => {
+            tokens.extend(expr_tokens.into_iter());
+            return NotComplete
+        },
+        Bad(message) => return Bad(message)
+    };
+
+    Good(Conditional{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, expr_tokens)
 }
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {

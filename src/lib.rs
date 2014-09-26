@@ -1,6 +1,7 @@
 #![feature(globs)]
 #![feature(link_args)]
 #![feature(phase)]
+#![feature(struct_variant)]
 
 extern crate libc;
 extern crate regex;
