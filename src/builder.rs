@@ -205,7 +205,63 @@ impl IRBuilder for Expression {
                             false))
                     })
                 },
-                &Conditional{ref cond_expr, ref then_expr, ref else_expr} => return error("not implemented")
+                &Conditional{ref cond_expr, ref then_expr, ref else_expr} => {
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
+
+                    let cond_value = match cond_expr.codegen(context) {
+                        Ok((value, _)) => value,
+                        Err(message) => return Err(message)
+                    };
+
+                    let zero = llvm::LLVMConstReal(ty, 0.0);
+
+                    let ifcond = "ifcond".with_c_str(|buf| {
+                        llvm::LLVMBuildFCmp(context.builder,
+                                            llvm::RealONE as c_uint,
+                                            cond_value,
+                                            zero,
+                                            buf)
+                    });
+
+                    let block = llvm::LLVMGetInsertBlock(context.builder);
+                    let function = llvm::LLVMGetBasicBlockParent(block);
+                    let then_block = "then".with_c_str(|buf| {
+                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
+                    });
+                    let else_block = "else".with_c_str(|buf| {
+                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
+                    });
+                    let merge_block = "ifcont".with_c_str(|buf| {
+                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
+                    });
+
+                    llvm::LLVMBuildCondBr(context.builder, ifcond, then_block, else_block);
+
+                    llvm::LLVMPositionBuilderAtEnd(context.builder, then_block);
+                    let then_value = match then_expr.codegen(context) {
+                        Ok((value, _)) => value,
+                        Err(message) => return Err(message)
+                    };
+                    llvm:: LLVMBuildBr(context.builder, merge_block);
+                    let then_end_block = llvm::LLVMGetInsertBlock(context.builder);
+
+                    llvm::LLVMPositionBuilderAtEnd(context.builder, else_block);
+                    let else_value = match else_expr.codegen(context) {
+                        Ok((value, _)) => value,
+                        Err(message) => return Err(message)
+                    };
+                    llvm:: LLVMBuildBr(context.builder, merge_block);
+                    let else_end_block = llvm::LLVMGetInsertBlock(context.builder);
+
+                     llvm::LLVMPositionBuilderAtEnd(context.builder, merge_block);
+                    let phi = "ifphi".with_c_str(|buf| {
+                        llvm::LLVMBuildPhi(context.builder, ty, buf)
+                    });
+                    llvm::LLVMAddIncoming(phi, &then_value, &then_end_block, 1);
+                    llvm::LLVMAddIncoming(phi, &else_value, &else_end_block, 1);
+
+                    Ok((phi, false))
+                }
             }
         }
     }
