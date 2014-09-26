@@ -45,10 +45,10 @@ pub fn default_parser_settings() -> ParserSettings {
 }
 
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &ParserSettings) -> ParsingResult {
-    let mut rest = Vec::from_slice(tokens);
+    let mut rest = tokens.to_vec();
     rest.reverse();
 
-    let mut ast = Vec::from_slice(parsed_tree);
+    let mut ast = parsed_tree.to_vec();
 
     loop {
         let cur_token =
@@ -99,7 +99,7 @@ fn parse_function(tokens : &mut Vec<Token>, parsed_tree : &mut Vec<ASTNode>, set
         Good(expr, _) => expr,
         NotComplete => {
             proto_tokens.reverse();
-            tokens.push_all_move(proto_tokens);
+            tokens.extend(proto_tokens.into_iter());
             tokens.push(Def);
             return Ok(false)
         },
@@ -182,7 +182,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Part
             }
             None => {
                 proto_tokens.reverse();
-                tokens.push_all_move(proto_tokens);
+                tokens.extend(proto_tokens.into_iter());
                 return NotComplete
             },
             _ => return error("expected ')' in prototype")
@@ -202,12 +202,12 @@ fn parse_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsi
 
     match parse_binary_expr(0, &lhs, tokens, settings) {
         Good(expr, expr_toks) => {
-            parsed_tokens.push_all_move(expr_toks);
+            parsed_tokens.extend(expr_toks.into_iter());
             Good(expr, parsed_tokens)
         },
         NotComplete => {
             parsed_tokens.reverse();
-            tokens.push_all_move(parsed_tokens);
+            tokens.extend(parsed_tokens.into_iter());
             NotComplete
         },
         Bad(message) => Bad(message)
@@ -260,14 +260,14 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Par
                     Good(arg_expr, arg_toks) => (arg_expr, arg_toks),
                     NotComplete => {
                         ident_tokens.reverse();
-                        tokens.push_all_move(ident_tokens);
+                        tokens.extend(ident_tokens.into_iter());
                         return NotComplete
                     },
                     Bad(message) => return Bad(message)
                 };
 
                 args.push(arg);
-                ident_tokens.push_all_move(arg_tokens);
+                ident_tokens.extend(arg_tokens.into_iter());
             }
         }
     }
@@ -292,7 +292,7 @@ fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) 
     match parse_expr(tokens, settings) {
         Good(expr, expr_toks) => {
             let mut expr_tokens = vec![OpeningParenthesis];
-            expr_tokens.push_all_move(expr_toks);
+            expr_tokens.extend(expr_toks.into_iter());
             match tokens.pop() {
                 Some(ClosingParenthesis) => {
                     expr_tokens.push(ClosingParenthesis);
@@ -300,7 +300,7 @@ fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) 
                 }
                 None => {
                     expr_tokens.reverse();
-                    tokens.push_all_move(expr_tokens);
+                    tokens.extend(expr_tokens.into_iter());
                     NotComplete
                 }
                 _ => error("expression expected")
@@ -337,14 +337,14 @@ fn parse_binary_expr(expr_precedence : i32, lhs : &Expression, tokens : &mut Vec
             Good(expr, toks) => (expr, toks),
             NotComplete => {
                 parsed_tokens.reverse();
-                tokens.push_all_move(parsed_tokens);
+                tokens.extend(parsed_tokens.into_iter());
                 return NotComplete
             },
             Bad(message) => return Bad(message)
         };
 
         rhs = primary_rhs;
-        parsed_tokens.push_all_move(primary_rhs_tokens);
+        parsed_tokens.extend(primary_rhs_tokens.into_iter());
 
         loop {
             let binary_rhs_result = match tokens.last().map(|i| {i.clone()}) {
@@ -362,14 +362,14 @@ fn parse_binary_expr(expr_precedence : i32, lhs : &Expression, tokens : &mut Vec
                 Good(expr, toks) => (expr, toks),
                 NotComplete => {
                     parsed_tokens.reverse();
-                    tokens.push_all_move(parsed_tokens);
+                    tokens.extend(parsed_tokens.into_iter());
                     return NotComplete
                 },
                 Bad(message) => return Bad(message)
             };
 
             rhs = binary_rhs;
-            parsed_tokens.push_all_move(binary_rhs_tokens);
+            parsed_tokens.extend(binary_rhs_tokens.into_iter());
         }
 
         result = Binary(operator, box result, box rhs);

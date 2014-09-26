@@ -27,17 +27,17 @@ pub fn main_loop(stage: Stage) {
         let mut prev = Vec::new();
         loop {
             let tokens = tokenize(input.as_slice());
-            if (stage == Tokens) {
+            if stage == Tokens {
                 println!("{}", tokens);
                 continue 'main
             }
 
-            prev.push_all_move(tokens);
+            prev.extend(tokens.into_iter());
 
             let parsing_result = parse(prev.as_slice(), ast.as_slice(), &parser_settings);
             match parsing_result {
                 Ok((parsed_ast, rest)) => {
-                    ast.push_all_move(parsed_ast);
+                    ast.extend(parsed_ast.into_iter());
                     if rest.is_empty() {
                         break
                     } else {
