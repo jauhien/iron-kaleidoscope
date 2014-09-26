@@ -10,7 +10,7 @@ extern crate iron_kaleidoscope;
 use iron_kaleidoscope::driver::{main_loop, Tokens, AST, IR, Exec};
 
 docopt!(Args, "
-Usage: iron_kaleidoscope (-l | -p | -i)
+Usage: iron_kaleidoscope [(-l | -p | -i)]
 
 Options:
     -l  Run only lexer and show its output.
