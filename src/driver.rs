@@ -68,7 +68,7 @@ pub fn main_loop(stage: Stage) {
         }
     }
 
-    if stage == IR && stage == Exec {
+    if stage == IR || stage == Exec {
         context.dump();
     }
 }
