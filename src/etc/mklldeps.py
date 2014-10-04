@@ -89,7 +89,7 @@ for llconfig in sys.argv[3:]:
         "target_os = \"" + os + "\"",
     ]
 
-    f.write("#[cfg(" + ', '.join(cfg) + ")]\n")
+    f.write("#[cfg(all(" + ', '.join(cfg) + "))]\n")
 
     version = run([llconfig, '--version']).strip()
 
