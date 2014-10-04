@@ -54,9 +54,7 @@ impl Context {
             LLVMInitializeNativeTarget();
 
             let context = llvm::LLVMContextCreate();
-            let module = module_name.with_c_str(|buf| {
-                llvm::LLVMModuleCreateWithNameInContext(buf, context)
-            });
+            let module = llvm::LLVMModuleCreateWithNameInContext(module_name.to_c_str().as_ptr(), context);
             let builder = llvm::LLVMCreateBuilderInContext(context);
             let named_values = HashMap::new();
 
@@ -127,61 +125,43 @@ impl IRBuilder for Expression {
                     }
                 },
                 &Binary(ref name, ref lhs, ref rhs) => {
-                    let lhs_value = match lhs.codegen(context) {
-                        Ok((value, _)) => value,
-                        Err(message) => return Err(message)
-                    };
-                    let rhs_value = match rhs.codegen(context) {
-                        Ok((value, _)) => value,
-                        Err(message) => return Err(message)
-                    };
+                    let (lhs_value, _) = try!(lhs.codegen(context));
+                    let (rhs_value, _) = try!(rhs.codegen(context));
 
                     match name.as_slice() {
-                        "+" => "addtmp".with_c_str(|buf| {
-                            Ok((llvm::LLVMBuildFAdd(context.builder,
-                                                   lhs_value,
-                                                   rhs_value,
-                                                   buf),
-                                false))
-                        }),
-                        "-" => "subtmp".with_c_str(|buf| {
-                            Ok((llvm::LLVMBuildFSub(context.builder,
-                                                   lhs_value,
-                                                   rhs_value,
-                                                   buf),
-                                false))
-                        }),
-                        "*" => "multmp".with_c_str(|buf| {
-                            Ok((llvm::LLVMBuildFMul(context.builder,
-                                                   lhs_value,
-                                                   rhs_value,
-                                                   buf),
-                                false))
-                        }),
+                        "+" => Ok((llvm::LLVMBuildFAdd(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "addtmp".to_c_str().as_ptr()),
+                                   false)),
+                        "-" => Ok((llvm::LLVMBuildFSub(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "subtmp".to_c_str().as_ptr()),
+                                   false)),
+                        "*" => Ok((llvm::LLVMBuildFMul(context.builder,
+                                                    lhs_value,
+                                                    rhs_value,
+                                                    "multmp".to_c_str().as_ptr()),
+                                false)),
                         "<" => {
-                            let cmp = "cmptmp".with_c_str(|buf| {
-                                llvm::LLVMBuildFCmp(context.builder,
-                                              llvm::RealOLT as c_uint,
-                                              lhs_value,
-                                              rhs_value,
-                                              buf)
-                                });
+                            let cmp = llvm::LLVMBuildFCmp(context.builder,
+                                                          llvm::RealOLT as c_uint,
+                                                          lhs_value,
+                                                          rhs_value,
+                                                          "cmptmp".to_c_str().as_ptr());
                             let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                            "booltmp".with_c_str(|buf| {
-                                Ok((llvm::LLVMBuildUIToFP(context.builder,
-                                                         cmp,
-                                                         ty,
-                                                         buf),
-                                    false))
-                            })
+                            Ok((llvm::LLVMBuildUIToFP(context.builder,
+                                                      cmp,
+                                                      ty,
+                                                      "booltmp".to_c_str().as_ptr()),
+                                false))
                         },
                         _ => error("invalid binary operator")
                     }
                 },
                 &Call(ref name, ref args) => {
-                    let function = name.with_c_str(|buf| {
-                        llvm::LLVMGetNamedFunction(context.module, buf)
-                    });
+                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
                     if function.is_null() {
                         return error("unknown function referenced")
                     }
@@ -190,73 +170,50 @@ impl IRBuilder for Expression {
                     }
                     let mut args_value = Vec::new();
                     for arg in args.iter() {
-                        let arg_value = match arg.codegen(context) {
-                            Ok((value, _)) => value,
-                            Err(message) => return Err(message)
-                        };
+                        let (arg_value, _) = try!(arg.codegen(context));
                         args_value.push(arg_value);
                     }
-                    "calltmp".with_c_str(|buf| {
-                        Ok((llvm::LLVMBuildCall(context.builder,
-                                               function,
-                                               args_value.as_ptr(),
-                                               args_value.len() as c_uint,
-                                               buf),
-                            false))
-                    })
+                    Ok((llvm::LLVMBuildCall(context.builder,
+                                            function,
+                                            args_value.as_ptr(),
+                                            args_value.len() as c_uint,
+                                            "calltmp".to_c_str().as_ptr()),
+                        false))
                 },
                 &Conditional{ref cond_expr, ref then_expr, ref else_expr} => {
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
 
-                    let cond_value = match cond_expr.codegen(context) {
-                        Ok((value, _)) => value,
-                        Err(message) => return Err(message)
-                    };
+                    let (cond_value, _) = try!(cond_expr.codegen(context));
 
                     let zero = llvm::LLVMConstReal(ty, 0.0);
 
-                    let ifcond = "ifcond".with_c_str(|buf| {
-                        llvm::LLVMBuildFCmp(context.builder,
-                                            llvm::RealONE as c_uint,
-                                            cond_value,
-                                            zero,
-                                            buf)
-                    });
+                    let ifcond = llvm::LLVMBuildFCmp(context.builder,
+                                                     llvm::RealONE as c_uint,
+                                                     cond_value,
+                                                     zero,
+                                                     "ifcond".to_c_str().as_ptr());
 
                     let block = llvm::LLVMGetInsertBlock(context.builder);
                     let function = llvm::LLVMGetBasicBlockParent(block);
-                    let then_block = "then".with_c_str(|buf| {
-                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
-                    });
-                    let else_block = "else".with_c_str(|buf| {
-                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
-                    });
-                    let merge_block = "ifcont".with_c_str(|buf| {
-                        llvm::LLVMAppendBasicBlockInContext(context.context, function, buf)
-                    });
+                    let then_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "then".to_c_str().as_ptr());
+                    let else_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "else".to_c_str().as_ptr());
+                    let merge_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "ifcont".to_c_str().as_ptr());
 
                     llvm::LLVMBuildCondBr(context.builder, ifcond, then_block, else_block);
 
                     llvm::LLVMPositionBuilderAtEnd(context.builder, then_block);
-                    let then_value = match then_expr.codegen(context) {
-                        Ok((value, _)) => value,
-                        Err(message) => return Err(message)
-                    };
+                    let (then_value, _) = try!(then_expr.codegen(context));
+
                     llvm:: LLVMBuildBr(context.builder, merge_block);
                     let then_end_block = llvm::LLVMGetInsertBlock(context.builder);
 
                     llvm::LLVMPositionBuilderAtEnd(context.builder, else_block);
-                    let else_value = match else_expr.codegen(context) {
-                        Ok((value, _)) => value,
-                        Err(message) => return Err(message)
-                    };
+                    let (else_value, _) = try!(else_expr.codegen(context));
                     llvm:: LLVMBuildBr(context.builder, merge_block);
                     let else_end_block = llvm::LLVMGetInsertBlock(context.builder);
 
                      llvm::LLVMPositionBuilderAtEnd(context.builder, merge_block);
-                    let phi = "ifphi".with_c_str(|buf| {
-                        llvm::LLVMBuildPhi(context.builder, ty, buf)
-                    });
+                    let phi = llvm::LLVMBuildPhi(context.builder, ty, "ifphi".to_c_str().as_ptr());
                     llvm::LLVMAddIncoming(phi, &then_value, &then_end_block, 1);
                     llvm::LLVMAddIncoming(phi, &else_value, &else_end_block, 1);
 
@@ -270,9 +227,7 @@ impl IRBuilder for Expression {
 impl IRBuilder for Prototype {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         unsafe {
-            let prev_definition = self.name.with_c_str(|buf| {
-                llvm::LLVMGetNamedFunction(context.module, buf)
-            });
+            let prev_definition = llvm::LLVMGetNamedFunction(context.module, self.name.to_c_str().as_ptr());
 
             let function =
                 if !prev_definition.is_null() {
@@ -290,18 +245,14 @@ impl IRBuilder for Prototype {
                     let param_types = Vec::from_elem(self.args.len(), ty);
                     let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
 
-                    self.name.with_c_str(|buf| {
-                        llvm::LLVMAddFunction(context.module,
-                                              buf,
-                                              fty)
-                    })
+                    llvm::LLVMAddFunction(context.module,
+                                          self.name.to_c_str().as_ptr(),
+                                          fty)
                 };
 
             let mut param = llvm::LLVMGetFirstParam(function);
             for arg in self.args.iter() {
-                arg.with_c_str(|buf| {
-                     llvm::LLVMSetValueName(param, buf);
-                });
+                llvm::LLVMSetValueName(param, arg.to_c_str().as_ptr());
                 param = llvm::LLVMGetNextParam(param);
             }
 
@@ -314,17 +265,12 @@ impl IRBuilder for Function {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         context.named_values.clear();
 
-        let function = match self.prototype.codegen(context) {
-            Ok((func, _)) => func,
-            Err(message) => return Err(message)
-        };
+        let (function, _) = try!(self.prototype.codegen(context));
 
         unsafe {
-            let basic_block = "entry".with_c_str(|buf| {
-                llvm::LLVMAppendBasicBlockInContext(context.context,
-                                                    function,
-                                                    buf)
-            });
+            let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
+                                                                  function,
+                                                                  "entry".to_c_str().as_ptr());
 
             llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
 
@@ -364,10 +310,7 @@ impl IRBuilder for Vec<ASTNode> {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         let mut result = error("empty AST");
         for node in self.iter() {
-            result = match node.codegen(context) {
-                Ok((value, runnable)) => Ok((value, runnable)),
-                Err(message) => return Err(message)
-            }
+            result = Ok(try!(node.codegen(context)));
         }
 
         result
