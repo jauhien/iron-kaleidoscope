@@ -5,6 +5,8 @@ pub enum Token {
     If,
     Then,
     Else,
+    For,
+    In,
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -30,6 +32,8 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "if" => If,
                 "then" => Then,
                 "else" => Else,
+                "for" => For,
+                "in" => In,
                 ident => Ident(ident.to_string())
             }
         } else if !cap.name("number").is_empty() {
