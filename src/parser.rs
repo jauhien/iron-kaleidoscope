@@ -12,7 +12,8 @@ pub enum Expression {
     Variable(String),
     Binary(String, Box<Expression>, Box<Expression>),
     Call(String, Vec<Expression>),
-    Conditional{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>}
+    Conditional{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
+    Loop{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>}
 }
 
 #[deriving(PartialEq, Clone, Show)]
@@ -196,6 +197,7 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
         Some(&Ident(_)) => parse_ident_expr(tokens, settings),
         Some(&Number(_)) => parse_literal_expr(tokens, settings),
         Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&For) => parse_loop_expr(tokens, settings),
         Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
         None => return NotComplete,
         _ => error("unknow token when expecting an expression")
@@ -255,6 +257,39 @@ fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) 
     let else_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     Good(Conditional{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
+}
+
+fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut parsed_tokens = vec![For];
+    let var_name = expect_token!(
+        [Ident(name), Ident(name.clone()), name] <= tokens,
+        parsed_tokens, "expected identifier after for");
+
+    expect_token!(
+        [Assign, Assign, ()] <= tokens,
+        parsed_tokens, "expected '=' after for");
+
+    let start_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    expect_token!(
+        [Comma, Comma, ()] <= tokens,
+        parsed_tokens, "expected ',' after for start value");
+
+    let end_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    let step_expr = expect_token!(
+        [Comma, Comma, parse_try!(parse_expr, tokens, settings, parsed_tokens)]
+        else {Literal(1.0)}
+        <= tokens, parsed_tokens);
+
+    expect_token!(
+        [In, In, ()] <= tokens,
+        parsed_tokens, "expected 'in' after for");
+
+    let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(Loop{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
 }
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {

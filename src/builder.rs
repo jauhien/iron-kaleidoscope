@@ -218,6 +218,9 @@ impl IRBuilder for Expression {
                     llvm::LLVMAddIncoming(phi, &else_value, &else_end_block, 1);
 
                     Ok((phi, false))
+                },
+                &Loop{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
+                    error("not implemented")
                 }
             }
         }
