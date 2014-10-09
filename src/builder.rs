@@ -51,7 +51,7 @@ pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
 impl Context {
     pub fn new(module_name : &str) -> Context {
         unsafe {
-            LLVMInitializeNativeTarget();
+            //LLVMInitializeNativeTarget();
 
             let context = llvm::LLVMContextCreate();
             let module = llvm::LLVMModuleCreateWithNameInContext(module_name.to_c_str().as_ptr(), context);
