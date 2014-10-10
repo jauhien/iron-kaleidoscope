@@ -13,7 +13,7 @@ pub enum Stage {
 }
 
 pub fn main_loop(stage: Stage) {
-    let parser_settings = default_parser_settings();
+    let mut parser_settings = default_parser_settings();
     let mut context = Context::new("main");
 
     'main: loop {
@@ -34,7 +34,7 @@ pub fn main_loop(stage: Stage) {
 
             prev.extend(tokens.into_iter());
 
-            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &parser_settings);
+            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
             match parsing_result {
                 Ok((parsed_ast, rest)) => {
                     ast.extend(parsed_ast.into_iter());
