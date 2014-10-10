@@ -157,7 +157,22 @@ impl IRBuilder for Expression {
                                                       "booltmp".to_c_str().as_ptr()),
                                 false))
                         },
-                        _ => error("invalid binary operator")
+                        op => {
+                            let name = "binary".to_string() + op;
+                            let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                            if function.is_null() {
+                                return error("binary operator not found")
+                            }
+
+                            let args_value = vec![lhs_value, rhs_value];
+
+                            Ok((llvm::LLVMBuildCall(context.builder,
+                                                    function,
+                                                    args_value.as_ptr(),
+                                                    args_value.len() as c_uint,
+                                                    "binop".to_c_str().as_ptr()),
+                                false))
+                        }
                     }
                 },
                 &CallExpr(ref name, ref args) => {
