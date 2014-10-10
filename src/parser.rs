@@ -8,12 +8,12 @@ pub struct ParserSettings {
 
 #[deriving(PartialEq, Clone, Show)]
 pub enum Expression {
-    Literal(f64),
-    Variable(String),
-    Binary(String, Box<Expression>, Box<Expression>),
-    Call(String, Vec<Expression>),
-    Conditional{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
-    Loop{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>}
+    LiteralExpr(f64),
+    VariableExpr(String),
+    BinaryExpr(String, Box<Expression>, Box<Expression>),
+    CallExpr(String, Vec<Expression>),
+    ConditionalExpr{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
+    LoopExpr{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>}
 }
 
 #[deriving(PartialEq, Clone, Show)]
@@ -213,7 +213,7 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Par
 
     expect_token!(
         [OpeningParenthesis, OpeningParenthesis, ()]
-        else {return Good(Variable(name), parsed_tokens)}
+        else {return Good(VariableExpr(name), parsed_tokens)}
         <= tokens, parsed_tokens);
 
     let mut args = Vec::new();
@@ -227,7 +227,7 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Par
             <= tokens, parsed_tokens);
     }
 
-    Good(Call(name, args), parsed_tokens)
+    Good(CallExpr(name, args), parsed_tokens)
 }
 
 #[allow(unused_variable)]
@@ -238,7 +238,7 @@ fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> P
         [Number(val), Number(val), val] <= tokens,
         parsed_tokens, "literal expected");
 
-    Good(Literal(value), parsed_tokens)
+    Good(LiteralExpr(value), parsed_tokens)
 }
 
 fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
@@ -256,7 +256,7 @@ fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) 
         parsed_tokens, "expected else");
     let else_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
-    Good(Conditional{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
+    Good(ConditionalExpr{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
 }
 
 fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
@@ -280,7 +280,7 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Part
 
     let step_expr = expect_token!(
         [Comma, Comma, parse_try!(parse_expr, tokens, settings, parsed_tokens)]
-        else {Literal(1.0)}
+        else {LiteralExpr(1.0)}
         <= tokens, parsed_tokens);
 
     expect_token!(
@@ -289,7 +289,7 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> Part
 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
-    Good(Loop{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
+    Good(LoopExpr{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
 }
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &ParserSettings) -> PartParsingResult<Expression> {
@@ -340,7 +340,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &ParserSettings, expr_
             rhs = binary_rhs;
         }
 
-        result = Binary(operator, box result, box rhs);
+        result = BinaryExpr(operator, box result, box rhs);
     }
 
     Good(result, parsed_tokens)

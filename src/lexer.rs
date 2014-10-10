@@ -7,6 +7,8 @@ pub enum Token {
     Else,
     For,
     In,
+    Binary,
+    Unary,
     Assign,
     Delimiter,
     OpeningParenthesis,
@@ -35,6 +37,8 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "else" => Else,
                 "for" => For,
                 "in" => In,
+                "binary" => Binary,
+                "unary" => Unary,
                 ident => Ident(ident.to_string())
             }
         } else if !cap.name("number").is_empty() {

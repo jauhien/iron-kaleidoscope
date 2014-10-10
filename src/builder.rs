@@ -114,17 +114,17 @@ impl IRBuilder for Expression {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         unsafe {
             match self {
-                &Literal(ref value) => {
+                &LiteralExpr(ref value) => {
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
                     Ok((llvm::LLVMConstReal(ty, *value), false))
                 },
-                &Variable(ref name) => {
+                &VariableExpr(ref name) => {
                     match context.named_values.find(name) {
                         Some(value) => Ok((*value, false)),
                         None => error("unknown variable name")
                     }
                 },
-                &Binary(ref name, ref lhs, ref rhs) => {
+                &BinaryExpr(ref name, ref lhs, ref rhs) => {
                     let (lhs_value, _) = try!(lhs.codegen(context));
                     let (rhs_value, _) = try!(rhs.codegen(context));
 
@@ -160,7 +160,7 @@ impl IRBuilder for Expression {
                         _ => error("invalid binary operator")
                     }
                 },
-                &Call(ref name, ref args) => {
+                &CallExpr(ref name, ref args) => {
                     let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
                     if function.is_null() {
                         return error("unknown function referenced")
@@ -180,7 +180,7 @@ impl IRBuilder for Expression {
                                             "calltmp".to_c_str().as_ptr()),
                         false))
                 },
-                &Conditional{ref cond_expr, ref then_expr, ref else_expr} => {
+                &ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
 
                     let (cond_value, _) = try!(cond_expr.codegen(context));
@@ -219,7 +219,7 @@ impl IRBuilder for Expression {
 
                     Ok((phi, false))
                 },
-                &Loop{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
+                &LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
                     let (start_value, _) = try!(start_expr.codegen(context));
 
                     let preheader_block = llvm::LLVMGetInsertBlock(context.builder);
