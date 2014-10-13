@@ -124,8 +124,23 @@ impl IRBuilder for Expression {
                         None => error("unknown variable name")
                     }
                 },
-                &UnaryExpr(ref name, ref operand) => {
-                    error("not implemented")
+                &UnaryExpr(ref operator, ref operand) => {
+                    let (operand, _) = try!(operand.codegen(context));
+
+                    let name = "unary".to_string() + operator.as_slice();
+                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                    if function.is_null() {
+                        return error("unary operator not found")
+                    }
+
+                    let args_value = vec![operand];
+
+                    Ok((llvm::LLVMBuildCall(context.builder,
+                                            function,
+                                            args_value.as_ptr(),
+                                            args_value.len() as c_uint,
+                                            "unop".to_c_str().as_ptr()),
+                        false))
                 },
                 &BinaryExpr(ref name, ref lhs, ref rhs) => {
                     let (lhs_value, _) = try!(lhs.codegen(context));
