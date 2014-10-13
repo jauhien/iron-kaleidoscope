@@ -10,6 +10,7 @@ pub struct ParserSettings {
 pub enum Expression {
     LiteralExpr(f64),
     VariableExpr(String),
+    UnaryExpr(String, Box<Expression>),
     BinaryExpr(String, Box<Expression>, Box<Expression>),
     CallExpr(String, Vec<Expression>),
     ConditionalExpr{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
@@ -182,6 +183,12 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
 
     let (name, ftype) = expect_token!([
             Ident(name), Ident(name.clone()), (name, Normal);
+            Unary, Unary, {
+                let op = expect_token!([
+                        Operator(op), Operator(op.clone()), op
+                    ] <= tokens, parsed_tokens, "expected unary operator");
+                ("unary".to_string() + op, UnaryOp(op))
+            };
             Binary, Binary, {
                 let op = expect_token!([
                         Operator(op), Operator(op.clone()), op
@@ -213,6 +220,9 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
     }
 
     match ftype {
+        UnaryOp(_) => if args.len() != 1 {
+            return error("invalid number of operands for unary operator")
+        },
         BinaryOp(_, _) => if args.len() != 2 {
             return error("invalid number of operands for binary operator")
         },
@@ -237,6 +247,7 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) 
         Some(&If) => parse_conditional_expr(tokens, settings),
         Some(&For) => parse_loop_expr(tokens, settings),
         Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        Some(&Operator(_)) => parse_unary_expr(tokens, settings),
         None => return NotComplete,
         _ => error("unknow token when expecting an expression")
     }
@@ -341,6 +352,18 @@ fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettin
         parsed_tokens, "')' expected");
 
     Good(expr, parsed_tokens)
+}
+
+fn parse_unary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    let mut parsed_tokens = Vec::new();
+
+    let name = expect_token!(
+        [Operator(name), Operator(name.clone()), name] <= tokens,
+        parsed_tokens, "unary operator expected");
+
+    let operand = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
+
+    Good(UnaryExpr(name, box operand), parsed_tokens)
 }
 
 fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, expr_precedence : i32, lhs : &Expression) -> PartParsingResult<Expression> {

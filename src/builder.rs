@@ -124,6 +124,9 @@ impl IRBuilder for Expression {
                         None => error("unknown variable name")
                     }
                 },
+                &UnaryExpr(ref name, ref operand) => {
+                    error("not implemented")
+                },
                 &BinaryExpr(ref name, ref lhs, ref rhs) => {
                     let (lhs_value, _) = try!(lhs.codegen(context));
                     let (rhs_value, _) = try!(rhs.codegen(context));
