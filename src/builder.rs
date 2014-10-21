@@ -72,6 +72,7 @@ impl Context {
             LLVMDisposeMessage(data_layout);
 
             llvm::LLVMAddVerifierPass(function_passmanager);
+            LLVMAddPromoteMemoryToRegisterPass(function_passmanager);
             llvm::LLVMAddBasicAliasAnalysisPass(function_passmanager);
             llvm::LLVMAddInstructionCombiningPass(function_passmanager);
             llvm::LLVMAddReassociatePass(function_passmanager);
@@ -110,6 +111,19 @@ fn error(message : &str) -> IRBuildingResult {
     Err(message.to_string())
 }
 
+fn create_entry_block_alloca(context: &mut Context, function: llvm::ValueRef, var_name: String) -> llvm::ValueRef {
+    unsafe {
+        let ty = llvm::LLVMDoubleTypeInContext(context.context);
+        let builder = llvm::LLVMCreateBuilderInContext(context.context);
+        let bb = llvm::LLVMGetEntryBasicBlock(function);
+        llvm::LLVMPositionBuilder(builder, bb, llvm::LLVMGetFirstInstruction(bb));
+        let result = llvm::LLVMBuildAlloca(builder, ty, var_name.to_c_str().as_ptr());
+        llvm::LLVMDisposeBuilder(builder);
+
+        result
+    }
+}
+
 impl IRBuilder for Expression {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         unsafe {
@@ -120,7 +134,12 @@ impl IRBuilder for Expression {
                 },
                 &VariableExpr(ref name) => {
                     match context.named_values.find(name) {
-                        Some(value) => Ok((*value, false)),
+                        Some(value) => {
+                            let var = llvm::LLVMBuildLoad(context.builder,
+                                                          *value,
+                                                          name.to_c_str().as_ptr());
+                            Ok((var, false))
+                        },
                         None => error("unknown variable name")
                     }
                 },
@@ -257,24 +276,32 @@ impl IRBuilder for Expression {
 
                     let preheader_block = llvm::LLVMGetInsertBlock(context.builder);
                     let function = llvm::LLVMGetBasicBlockParent(preheader_block);
+
+                    let variable = create_entry_block_alloca(context, function, var_name.clone());
+                    llvm::LLVMBuildStore(context.builder, start_value, variable);
+
                     let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "loop".to_c_str().as_ptr());
                     llvm::LLVMBuildBr(context.builder, loop_block);
                     llvm::LLVMPositionBuilderAtEnd(context.builder, loop_block);
 
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let variable = llvm::LLVMBuildPhi(context.builder, ty, var_name.to_c_str().as_ptr());
-                    llvm::LLVMAddIncoming(variable, &start_value, &preheader_block, 1);
                     let old_value = context.named_values.pop(var_name);
                     context.named_values.insert(var_name.clone(), variable);
 
                     try!(body_expr.codegen(context));
 
                     let (step_value, _) = try!(step_expr.codegen(context));
+                    let cur_value = llvm::LLVMBuildLoad(context.builder,
+                                                        variable,
+                                                        var_name.to_c_str().as_ptr());
                     let next_value = llvm::LLVMBuildFAdd(context.builder,
-                                                         variable,
+                                                         cur_value,
                                                          step_value,
                                                          "nextvar".to_c_str().as_ptr());
+                    llvm::LLVMBuildStore(context.builder, next_value, variable);
+
                     let (end_value, _) = try!(end_expr.codegen(context));
+
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
                     let zero = llvm::LLVMConstReal(ty, 0.0);
                     let end_cond = llvm::LLVMBuildFCmp(context.builder,
                                                        llvm::RealONE as c_uint,
@@ -282,12 +309,9 @@ impl IRBuilder for Expression {
                                                        zero,
                                                        "loopcond".to_c_str().as_ptr());
 
-                    let end_block = llvm::LLVMGetInsertBlock(context.builder);
                     let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "afterloop".to_c_str().as_ptr());
                     llvm::LLVMBuildCondBr(context.builder, end_cond, loop_block, after_block);
                     llvm::LLVMPositionBuilderAtEnd(context.builder, after_block);
-
-                    llvm::LLVMAddIncoming(variable, &next_value, &end_block, 1);
 
                     context.named_values.pop(var_name);
                     match old_value {
@@ -354,7 +378,9 @@ impl IRBuilder for Function {
 
             let mut param = llvm::LLVMGetFirstParam(function);
             for arg in self.prototype.args.iter() {
-                context.named_values.insert(arg.clone(), param);
+                let arg_alloca = create_entry_block_alloca(context, function, arg.clone());
+                llvm::LLVMBuildStore(context.builder, param, arg_alloca);
+                context.named_values.insert(arg.clone(), arg_alloca);
                 param = llvm::LLVMGetNextParam(param);
             }
 

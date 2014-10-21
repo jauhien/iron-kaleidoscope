@@ -2,7 +2,7 @@
 
 use libc::{c_char, c_uint};
 
-use rustc::lib::llvm::{ExecutionEngineRef, ModuleRef, TargetDataRef, TypeRef, ValueRef};
+use rustc::lib::llvm::{ExecutionEngineRef, ModuleRef, PassManagerRef, TargetDataRef, TypeRef, ValueRef};
 
 pub use self::llvmdeps::LLVMInitializeNativeTarget;
 
@@ -33,6 +33,8 @@ extern {
     pub fn LLVMGenericValueToFloat(TyRef: TypeRef,
                                    GenVal: GenericValueRef)
                                    -> f64;
+
+    pub fn LLVMAddPromoteMemoryToRegisterPass(PM: PassManagerRef);
 }
 
 mod llvmdeps;
