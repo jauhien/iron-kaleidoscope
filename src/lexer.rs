@@ -25,7 +25,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     let mut result = Vec::new();
 
-    let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<assign>=)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
+    let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
     for cap in token_re.captures_iter(preprocessed.as_slice()) {
 
         let token = if !cap.name("ident").is_empty() {
@@ -46,8 +46,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 Some(number) => Number(number),
                 None => panic!("Lexer failed trying to parse number")
             }
-        } else if !cap.name("assign").is_empty() {
-            Assign
         } else if !cap.name("delimiter").is_empty() {
             Delimiter
         } else if !cap.name("oppar").is_empty() {

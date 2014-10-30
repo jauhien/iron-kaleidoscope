@@ -316,7 +316,11 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
         parsed_tokens, "expected identifier after for");
 
     expect_token!(
-        [Assign, Assign, ()] <= tokens,
+        [Operator(op), Operator(op.clone()), {
+            if op.as_slice() != "=" {
+                return error("expected '=' after for")
+            }
+        }] <= tokens,
         parsed_tokens, "expected '=' after for");
 
     let start_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
