@@ -44,7 +44,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         } else if !cap.name("number").is_empty() {
             match from_str::<f64>(cap.name("number")) {
                 Some(number) => Number(number),
-                None => fail!("Lexer failed trying to parse number")
+                None => panic!("Lexer failed trying to parse number")
             }
         } else if !cap.name("assign").is_empty() {
             Assign
