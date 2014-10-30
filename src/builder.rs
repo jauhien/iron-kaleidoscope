@@ -162,6 +162,23 @@ impl IRBuilder for Expression {
                         false))
                 },
                 &BinaryExpr(ref name, ref lhs, ref rhs) => {
+
+                    if name.as_slice() == "=" {
+                        let var_name = match **lhs {
+                            VariableExpr(ref nm) => nm,
+                            _ => return error("destination of '=' must be a variable")
+                        };
+
+                        let (value, _) = try!(rhs.codegen(context));
+                        let variable = match context.named_values.find(var_name) {
+                            Some(vl) => *vl,
+                            None => return error("unknown variable name")
+                        };
+                        llvm::LLVMBuildStore(context.builder, value, variable);
+
+                        return Ok((value, false))
+                    }
+
                     let (lhs_value, _) = try!(lhs.codegen(context));
                     let (rhs_value, _) = try!(rhs.codegen(context));
 
