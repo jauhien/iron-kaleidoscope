@@ -337,6 +337,9 @@ impl IRBuilder for Expression {
                     };
 
                     Ok((zero, false))
+                },
+                &VarExpr{ref vars, ref body_expr} => {
+                    error("not implemented")
                 }
             }
         }

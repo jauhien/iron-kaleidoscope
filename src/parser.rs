@@ -14,7 +14,8 @@ pub enum Expression {
     BinaryExpr(String, Box<Expression>, Box<Expression>),
     CallExpr(String, Vec<Expression>),
     ConditionalExpr{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
-    LoopExpr{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>}
+    LoopExpr{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>},
+    VarExpr{pub vars: Vec<(String, Expression)>, pub body_expr: Box<Expression>}
 }
 
 #[deriving(PartialEq, Clone, Show)]
@@ -247,6 +248,7 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) 
         Some(&Number(_)) => parse_literal_expr(tokens, settings),
         Some(&If) => parse_conditional_expr(tokens, settings),
         Some(&For) => parse_loop_expr(tokens, settings),
+        Some(&Var) => parse_var_expr(tokens, settings),
         Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
         Some(&Operator(_)) => parse_unary_expr(tokens, settings),
         None => return NotComplete,
@@ -344,6 +346,43 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     Good(LoopExpr{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
+}
+
+fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut parsed_tokens = vec![Var];
+    let mut vars = Vec::new();
+
+    loop {
+        let var_name = expect_token!(
+            [Ident(name), Ident(name.clone()), name] <= tokens,
+            parsed_tokens, "expected identifier list after var");
+
+        let init_expr = expect_token!(
+            [Operator(op), Operator(op.clone()), {
+                if op.as_slice() != "=" {
+                    return error("expected '=' in variable initialization")
+                }
+                parse_try!(parse_expr, tokens, settings, parsed_tokens)
+            }]
+            else {LiteralExpr(0.0)}
+            <= tokens, parsed_tokens);
+
+        vars.push((var_name, init_expr));
+
+        expect_token!(
+            [Comma, Comma, ()]
+            else {break}
+            <= tokens, parsed_tokens);
+    }
+
+    expect_token!(
+        [In, In, ()] <= tokens,
+        parsed_tokens, "expected 'in' after var");
+
+    let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(VarExpr{vars: vars, body_expr: box body_expr}, parsed_tokens)
 }
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
