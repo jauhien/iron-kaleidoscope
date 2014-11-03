@@ -9,7 +9,7 @@ pub enum Token {
     In,
     Binary,
     Unary,
-    Assign,
+    Var,
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -39,6 +39,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "in" => In,
                 "binary" => Binary,
                 "unary" => Unary,
+                "var" => Var,
                 ident => Ident(ident.to_string())
             }
         } else if !cap.name("number").is_empty() {
