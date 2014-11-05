@@ -33,7 +33,7 @@ pub extern fn print(x: f64) -> f64 {
     x
 }
 
-#[allow(unused_variable)]
+#[allow(unused_variables)]
 pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
     //hack for make linker not to remove print function
     let x = print;

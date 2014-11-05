@@ -179,7 +179,7 @@ fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
     Good(FunctionNode(lambda), parsed_tokens)
 }
 
-#[allow(unused_variable)]
+#[allow(unused_variables)]
 fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
     let mut parsed_tokens = Vec::new();
 
@@ -282,7 +282,7 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
     Good(CallExpr(name, args), parsed_tokens)
 }
 
-#[allow(unused_variable)]
+#[allow(unused_variables)]
 fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     let mut parsed_tokens = Vec::new();
 

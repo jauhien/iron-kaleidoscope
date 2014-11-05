@@ -20,7 +20,7 @@ Options:
 
 #[cfg(not(test))]
 fn main() {
-    let args: Args = docopt::FlagParser::parse().unwrap_or_else(|e| e.exit());
+    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
 
     let stage = if args.flag_l {
         Tokens
