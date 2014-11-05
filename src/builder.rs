@@ -339,7 +339,31 @@ impl IRBuilder for Expression {
                     Ok((zero, false))
                 },
                 &VarExpr{ref vars, ref body_expr} => {
-                    error("not implemented")
+                    let mut old_bindings = Vec::new();
+                    let function = llvm::LLVMGetBasicBlockParent(llvm::LLVMGetInsertBlock(context.builder));
+                    for var in vars.iter() {
+                        let (ref name, ref init_expr) = *var;
+                        let (init_value, _) = try!(init_expr.codegen(context));
+                        let variable = create_entry_block_alloca(context, function, name.clone());
+                        llvm::LLVMBuildStore(context.builder, init_value, variable);
+                        old_bindings.push(context.named_values.pop(name));
+                        context.named_values.insert(name.clone(), variable);
+                    }
+
+                    let (body_value, _) = try!(body_expr.codegen(context));
+
+                    let mut old_iter = old_bindings.iter();
+                    for var in vars.iter() {
+                        let (ref name, _) = *var;
+                        context.named_values.pop(name);
+
+                        match old_iter.next() {
+                            Some(&Some(value)) => {context.named_values.insert(name.clone(), value);},
+                            _ => ()
+                        };
+                    }
+
+                    Ok((body_value, false))
                 }
             }
         }
