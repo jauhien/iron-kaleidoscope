@@ -416,7 +416,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
 
     loop {
         let (operator, precedence) = match tokens.last() {
-            Some(&Operator(ref op)) => match settings.operator_precedence.find(op) {
+            Some(&Operator(ref op)) => match settings.operator_precedence.get(op) {
                 Some(pr) if *pr >= expr_precedence => (op.clone(), *pr),
                 None => return error("unknown operator found"),
                 _ => break
@@ -432,7 +432,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
 
         loop {
             let binary_rhs = match tokens.last().map(|i| {i.clone()}) {
-                Some(Operator(ref op)) => match settings.operator_precedence.find(op).map(|i| {*i}) {
+                Some(Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
                     Some(pr) if pr > precedence => {
                         parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, pr, &rhs)
                     },

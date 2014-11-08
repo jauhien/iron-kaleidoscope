@@ -133,7 +133,7 @@ impl IRBuilder for Expression {
                     Ok((llvm::LLVMConstReal(ty, *value), false))
                 },
                 &VariableExpr(ref name) => {
-                    match context.named_values.find(name) {
+                    match context.named_values.get(name) {
                         Some(value) => {
                             let var = llvm::LLVMBuildLoad(context.builder,
                                                           *value,
@@ -170,7 +170,7 @@ impl IRBuilder for Expression {
                         };
 
                         let (value, _) = try!(rhs.codegen(context));
-                        let variable = match context.named_values.find(var_name) {
+                        let variable = match context.named_values.get(var_name) {
                             Some(vl) => *vl,
                             None => return error("unknown variable name")
                         };
@@ -296,7 +296,7 @@ impl IRBuilder for Expression {
 
                     let variable = create_entry_block_alloca(context, function, var_name.clone());
                     llvm::LLVMBuildStore(context.builder, start_value, variable);
-                    let old_value = context.named_values.pop(var_name);
+                    let old_value = context.named_values.remove(var_name);
                     context.named_values.insert(var_name.clone(), variable);
 
                     let preloop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "preloop".to_c_str().as_ptr());
@@ -335,7 +335,7 @@ impl IRBuilder for Expression {
 
                     llvm::LLVMPositionBuilderAtEnd(context.builder, after_block);
 
-                    context.named_values.pop(var_name);
+                    context.named_values.remove(var_name);
                     match old_value {
                         Some(value) => {context.named_values.insert(var_name.clone(), value);},
                         None => ()
@@ -351,7 +351,7 @@ impl IRBuilder for Expression {
                         let (init_value, _) = try!(init_expr.codegen(context));
                         let variable = create_entry_block_alloca(context, function, name.clone());
                         llvm::LLVMBuildStore(context.builder, init_value, variable);
-                        old_bindings.push(context.named_values.pop(name));
+                        old_bindings.push(context.named_values.remove(name));
                         context.named_values.insert(name.clone(), variable);
                     }
 
@@ -360,7 +360,7 @@ impl IRBuilder for Expression {
                     let mut old_iter = old_bindings.iter();
                     for var in vars.iter() {
                         let (ref name, _) = *var;
-                        context.named_values.pop(name);
+                        context.named_values.remove(name);
 
                         match old_iter.next() {
                             Some(&Some(value)) => {context.named_values.insert(name.clone(), value);},
