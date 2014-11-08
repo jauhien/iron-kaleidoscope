@@ -296,13 +296,28 @@ impl IRBuilder for Expression {
 
                     let variable = create_entry_block_alloca(context, function, var_name.clone());
                     llvm::LLVMBuildStore(context.builder, start_value, variable);
-
-                    let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "loop".to_c_str().as_ptr());
-                    llvm::LLVMBuildBr(context.builder, loop_block);
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, loop_block);
-
                     let old_value = context.named_values.pop(var_name);
                     context.named_values.insert(var_name.clone(), variable);
+
+                    let preloop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "preloop".to_c_str().as_ptr());
+                    llvm::LLVMBuildBr(context.builder, preloop_block);
+                    llvm::LLVMPositionBuilderAtEnd(context.builder, preloop_block);
+
+                    let (end_value, _) = try!(end_expr.codegen(context));
+
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                    let zero = llvm::LLVMConstReal(ty, 0.0);
+                    let end_cond = llvm::LLVMBuildFCmp(context.builder,
+                                                       llvm::RealONE as c_uint,
+                                                       end_value,
+                                                       zero,
+                                                       "loopcond".to_c_str().as_ptr());
+
+                    let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "afterloop".to_c_str().as_ptr());
+                    let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "loop".to_c_str().as_ptr());
+
+                    llvm::LLVMBuildCondBr(context.builder, end_cond, loop_block, after_block);
+                    llvm::LLVMPositionBuilderAtEnd(context.builder, loop_block);
 
                     try!(body_expr.codegen(context));
 
@@ -316,18 +331,8 @@ impl IRBuilder for Expression {
                                                          "nextvar".to_c_str().as_ptr());
                     llvm::LLVMBuildStore(context.builder, next_value, variable);
 
-                    let (end_value, _) = try!(end_expr.codegen(context));
+                    llvm::LLVMBuildBr(context.builder, preloop_block);
 
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let zero = llvm::LLVMConstReal(ty, 0.0);
-                    let end_cond = llvm::LLVMBuildFCmp(context.builder,
-                                                       llvm::RealONE as c_uint,
-                                                       end_value,
-                                                       zero,
-                                                       "loopcond".to_c_str().as_ptr());
-
-                    let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "afterloop".to_c_str().as_ptr());
-                    llvm::LLVMBuildCondBr(context.builder, end_cond, loop_block, after_block);
                     llvm::LLVMPositionBuilderAtEnd(context.builder, after_block);
 
                     context.named_values.pop(var_name);
