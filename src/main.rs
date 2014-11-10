@@ -4,7 +4,7 @@ extern crate serialize;
 #[phase(plugin)] extern crate docopt_macros;
 extern crate docopt;
 
-extern crate iron_kaleidoscope;
+extern crate "iron-kaleidoscope" as iron_kaleidoscope;
 
 #[cfg(not(test))]
 use iron_kaleidoscope::driver::{main_loop, Tokens, AST, IR, Exec};
