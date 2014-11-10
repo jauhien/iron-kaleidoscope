@@ -86,6 +86,9 @@ for llconfig in sys.argv[4:]:
 
     version = run([llconfig, '--version']).strip()
 
+    # llvm_initialization static library
+    f.write("#[link(name = \"llvm_initialization\")]\n")
+
     # LLVM libs
     if version < '3.5':
       args = [llconfig, '--libs']
@@ -118,9 +121,6 @@ for llconfig in sys.argv[4:]:
         f.write("#[link(name = \"c++\")]\n")
     else:
         f.write("#[link(name = \"stdc++\")]\n")
-
-    # llvm_initialization static library
-    f.write("#[link(name = \"llvm_initialization\")]\n")
 
     # Attach everything to an extern block
     f.write("extern {}\n")
