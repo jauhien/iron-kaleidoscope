@@ -4,12 +4,12 @@ use libc::{c_char, c_uint};
 
 use rustc::lib::llvm::{ExecutionEngineRef, ModuleRef, PassManagerRef, TargetDataRef, TypeRef, ValueRef};
 
-pub use self::llvmdeps::LLVMInitializeNativeTarget;
-
 pub enum GenericValue_opaque {}
 pub type GenericValueRef = *mut GenericValue_opaque;
 
 extern {
+    pub fn llvm_initialize_native_target();
+
     pub fn LLVMCreateExecutionEngineForModule(OutEE: *mut ExecutionEngineRef,
                                               M: ModuleRef,
                                               OutError: *mut *const c_char);

@@ -18,7 +18,9 @@ from os import path
 
 f = open(sys.argv[1], 'wb')
 
-components = sys.argv[2].split(' ')
+out_dir = sys.argv[2]
+
+components = sys.argv[3].split(' ')
 components = [i for i in components if i]  # ignore extra whitespaces
 
 f.write("""// Copyright 2014 Jauhien Piatlicki <jauhien@gentoo.org>
@@ -47,9 +49,7 @@ def run(args):
         sys.exit(1)
     return out
 
-f.write("use rustc::lib::llvm;\n")
-
-for llconfig in sys.argv[3:]:
+for llconfig in sys.argv[4:]:
     f.write("\n")
 
     out = run([llconfig, '--host-target'])
@@ -64,13 +64,6 @@ for llconfig in sys.argv[3:]:
         native_target = 'ARM'
     elif 'mips' in arch:
         native_target = 'MIPS'
-
-    f.write("#[allow(non_snake_case)]\n")
-    f.write("pub unsafe fn LLVMInitializeNativeTarget() {\n")
-    f.write("    llvm::LLVMInitialize" + native_target + "TargetInfo();\n")
-    f.write("    llvm::LLVMInitialize" + native_target + "Target();\n")
-    f.write("    llvm::LLVMInitialize" + native_target + "TargetMC();\n")
-    f.write("}\n\n")
 
     if 'darwin' in os:
         os = 'macos'
@@ -126,6 +119,8 @@ for llconfig in sys.argv[3:]:
     else:
         f.write("#[link(name = \"stdc++\")]\n")
 
+    # llvm_initialization static library
+    f.write("#[link(name = \"llvm_initialization\")]\n")
+
     # Attach everything to an extern block
-    f.write("#[link_args = \"" + ldflags + "\"]\n")
     f.write("extern {}\n")
