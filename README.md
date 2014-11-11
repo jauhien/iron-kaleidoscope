@@ -113,7 +113,7 @@ Let's start from the first one. To implement it we'll use a regular expressions.
 
 The corresponding enumeration looks like this:
 
-```
+```rust
 #[deriving(PartialEq, Clone, Show)]
 pub enum Token {
     Def,
@@ -130,7 +130,7 @@ pub enum Token {
 
 Our parser function will accept a string with input characters and produce a vector of tokens. It will look like this:
 
-```
+```rust
 pub fn tokenize(input: &str) -> Vec<Token> {
     // regex for commentaries (start with #, end with the line end)
     let comment_re = regex!(r"(?m)#.*\n");
