@@ -1,3 +1,0 @@
-#!/bin/sh
-
-python2 src/etc/mklldeps.py src/missing_llvm_bindings/llvmdeps.rs jit llvm-config
