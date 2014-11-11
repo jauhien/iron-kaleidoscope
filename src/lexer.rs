@@ -10,7 +10,7 @@ pub enum Token {
     Binary,
     Unary,
     Var,
-    Delimiter,
+    Delimiter, //';' character
     OpeningParenthesis,
     ClosingParenthesis,
     Comma,
@@ -20,11 +20,15 @@ pub enum Token {
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
+    // regex for commentaries (start with #, end with the line end)
     let comment_re = regex!(r"(?m)#.*\n");
+    // remove commentaries from the input stream
     let preprocessed = comment_re.replace_all(input, "\n");
 
     let mut result = Vec::new();
 
+    // regex for token, just union of straightforward regexes for different token types
+    // operators are parsed the same way as identifier and separated later
     let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
     for cap in token_re.captures_iter(preprocessed.as_slice()) {
 
