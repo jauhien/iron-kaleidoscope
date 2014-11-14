@@ -3,8 +3,16 @@
 [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
 I have just started working on the text, for the full tutorial have a look at the first link.
+The code for tutorial is fully implemented (it means, it has all the features described in the original
+tutorial and corresponds to the state of code for the [Chapter 7](http://llvm.org/docs/tutorial/LangImpl7.html)).
 
-# Introduction and the lexer
+# Table of Contents
+
+* [Introduction](#introduction)
+  * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
+  * [The lexer](#the-lexer)
+
+# Introduction
 
 This tutorial shows how to implement a simple programming language using LLVM and Rust.
 Its first goal is to show how to use LLVM to create a simple REPL, so some knowledge of Rust is assumed.
