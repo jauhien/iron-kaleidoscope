@@ -10,6 +10,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
 
 * [Introduction](#introduction)
   * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
+  * [The project structure](#the-project-structure)
   * [The lexer](#the-lexer)
   * [The driver](#the-driver)
 * [Parser and AST implementation](#parser-and-ast-implementation)
@@ -101,33 +102,47 @@ moment include `def` and `extern`. Any non-alphanumerical non-whitespace charact
 
 A number literal is a nonempty sequence of decimal digits, possibly containing a decimal point character.
 
+### The project structure
+
+To create a REPL we will need (corresponding source files are shown in parenthesis):
+
+* the lexer ([lexer.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/lexer.rs))
+
+* the parser ([parser.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/parser.rs))
+
+* the IR builder ([builder.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/builder.rs))
+
+* the JIT compiler ([builder.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/builder.rs))
+
+* the driver ([driver.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/driver.rs))
+
+We'll use [Cargo](http://doc.crates.io/) as a build system for this project. All sources will live in the `src` directory.
+Project will have two crates: library and binary. All the real functionality will be implemented in the library, and the binary will just
+parse command line arguments and invoke the driver.
+
+[Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) is quite straight forward.
+The [docopt](https://github.com/docopt/docopt.rs) is added because we'll need to parse simple command libe arguments.
+
+Rust at the moment does not have full LLVM bindings, so we'll need to add some functions. That addition is handled by a combination
+of [scripts called during compilation](http://doc.crates.io/build-script.html) and some rust code that can be found in `src/missing_llvm_bindings` directory.
+
 ### The lexer
 
-To create a REPL we will need:
+To implement the lexer we'll use a regular expressions. We have next types of tokens (and corresponding regexes given in the notation used by the Rust regex library):
 
-* the lexer
+* def and extern keywords (def|extern)
 
-* the parser
+* identifier (\p{Alphabetic}\w*)
 
-* the IR builder
+* number literal (\d+\.?\d*)
 
-* the JIT compiler
+* semicolon (;)
 
-Let's start from the first one. To implement it we'll use a regular expressions. We have next types of tokens:
+* opening and closing parenthesis (\(|\))
 
-* def and extern keywords
+* comma (,)
 
-* identifier
-
-* number literal
-
-* semicolon
-
-* opening and closing parenthesis
-
-* comma
-
-* operator
+* operator (\S)
 
 The corresponding enumeration looks like this:
 
