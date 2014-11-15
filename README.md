@@ -12,8 +12,9 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
   * [The project structure](#the-project-structure)
   * [The lexer](#the-lexer)
-  * [The driver](#the-driver)
 * [Parser and AST implementation](#parser-and-ast-implementation)
+  * [The grammar](#the-grammar)
+  * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -214,9 +215,38 @@ Then we match it on input string and iterate over captures,
 looking what token we have matched. Identifiers are matched in the same regex with keywords, as they have the same microsyntax.
 They are separated later with the additional match.
 
-### The driver
+To experiment with this lexer you can create a simple main function that just reads lines from the input one by one and shows recognized tokens.
 
 ## Parser and AST implementation
+
+In this chapter we will build a parser for our Kaleidoscope language.
+First we need to define its grammar and how will we represent the parsing results.
+Then we can use [Recursive Descent Parsing](http://en.wikipedia.org/wiki/Recursive_descent_parser)
+and [Operator-Precedence Parsing](http://en.wikipedia.org/wiki/Operator-precedence_parser)
+to produce [the Abstract Syntax Tree](http://en.wikipedia.org/wiki/Abstract_syntax_tree)
+from the stream of tokens recognized by the lexer.
+
+### The grammar
+
+This grammar description uses the dialect of Extended Backus-Naur Form (EBNF) described
+in the [Rust reference](http://doc.rust-lang.org/reference.html#notation). Identifiers
+that start with the lowercase name non-terminals, when identifiers that start
+with the uppercase name terminals and correspond to the names in the `Token` enum defined
+in the lexer.
+
+```{.ebnf .notation}
+program          : [[statement | expression] Delimiter ? ]*;
+statement        : [declaration | definition];
+declaration      : Extern Ident argument_list;
+definition       : Def Ident argument_list expression;
+argument_list    : OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+expression       : [primary_expr | primary_expr Op expression];
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
+parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+```
+
+### The Abstract Syntax Tree (AST)
 
 ## LLVM IR code generation
 
