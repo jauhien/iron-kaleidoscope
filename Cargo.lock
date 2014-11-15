@@ -8,12 +8,12 @@ dependencies = [
 [[package]]
 name = "docopt"
 version = "0.6.8"
-source = "git+git://github.com/docopt/docopt.rs#0b184b15ed5ea7e3c180b088e8f99baa4427f989"
+source = "git+git://github.com/docopt/docopt.rs#eff782322c5064879b8fb393807bd565af234a18"
 
 [[package]]
 name = "docopt_macros"
 version = "0.6.5"
-source = "git+git://github.com/docopt/docopt.rs#0b184b15ed5ea7e3c180b088e8f99baa4427f989"
+source = "git+git://github.com/docopt/docopt.rs#eff782322c5064879b8fb393807bd565af234a18"
 dependencies = [
  "docopt 0.6.8 (git+git://github.com/docopt/docopt.rs)",
 ]
