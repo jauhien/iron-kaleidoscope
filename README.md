@@ -1,18 +1,24 @@
-% LLVM tutorial in the Rust language
-
-[LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
+# [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
 I have just started working on the text, for the full tutorial have a look at the first link.
 The code for tutorial is fully implemented (it means, it has all the features described in the original
 tutorial and corresponds to the state of code for the [Chapter 7](http://llvm.org/docs/tutorial/LangImpl7.html)).
 
-# Table of Contents
+## Table of Contents
 
 * [Introduction](#introduction)
   * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
   * [The lexer](#the-lexer)
+  * [The driver](#the-driver)
+* [Parser and AST implementation](#parser-and-ast-implementation)
+* [LLVM IR code generation](#llvm-ir-code-generation)
+* [JIT and optimizer support](#jit-and-optimizer-support)
+* [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
+* [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
+* [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
-# Introduction
+
+## Introduction
 
 This tutorial shows how to implement a simple programming language using LLVM and Rust.
 Its first goal is to show how to use LLVM to create a simple REPL, so some knowledge of Rust is assumed.
@@ -44,7 +50,7 @@ cargo build
 
 Then you will find an executable named `iron-kaleidoscope` in the `target` directory.
 
-## Basic variant of the Kaleidoscope language
+### Basic variant of the Kaleidoscope language
 
 In this tutorial we will use a simple functional language named Kaleidoscope. In this chapter its basic variant will be presented.
 New features will be added in the next chapters step by step.
@@ -93,7 +99,7 @@ moment include `def` and `extern`. Any non-alphanumerical non-whitespace charact
 
 A number literal is a nonempty sequence of decimal digits, possibly containing a decimal point character.
 
-## The lexer
+### The lexer
 
 To create a REPL we will need:
 
@@ -190,3 +196,17 @@ Some comments: we create regex with different groups matching to different types
 Then we match it on input string and iterate over captures,
 looking what token we have matched. Identifiers are matched in the same regex with keywords, as they have the same microsyntax.
 They are separated later with the additional match.
+
+### The driver
+
+## Parser and AST implementation
+
+## LLVM IR code generation
+
+## JIT and optimizer support
+
+## Extending Kaleidoscope: control flow
+
+## Extending Kaleidoscope: user-defined operators
+
+## Extending Kaleidoscope: mutable variables
