@@ -12,7 +12,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
   * [The project structure](#the-project-structure)
   * [The lexer](#the-lexer)
-* [Parser and AST implementation](#parser-and-ast-implementation)
+* [Parser and AST implementation](#ast-and-parser-implementation)
   * [The grammar](#the-grammar)
   * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
 * [LLVM IR code generation](#llvm-ir-code-generation)
@@ -217,7 +217,7 @@ They are separated later with the additional match.
 
 To experiment with this lexer you can create a simple main function that just reads lines from the input one by one and shows recognized tokens.
 
-## Parser and AST implementation
+## AST and parser implementation
 
 In this chapter we will build a parser for our Kaleidoscope language.
 First we need to define its grammar and how will we represent the parsing results.
@@ -237,9 +237,9 @@ in the lexer.
 ```{.ebnf .notation}
 program          : [[statement | expression] Delimiter ? ]*;
 statement        : [declaration | definition];
-declaration      : Extern Ident argument_list;
-definition       : Def Ident argument_list expression;
-argument_list    : OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+declaration      : Extern prototype;
+definition       : Def prototype expression;
+prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 expression       : [primary_expr | primary_expr Op expression];
 primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
@@ -247,6 +247,95 @@ parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
 
 ### The Abstract Syntax Tree (AST)
+
+Now we'll create data types corresponding to every item in the Kaleidoscope grammar.
+
+```{.ebnf .notation}
+program          : [[statement | expression] Delimiter ? ]*;
+```
+
+Program is just a sequence of statements and expressions. To make life easier in the future we will
+close every expression in an anonymous function (we'll use this during JIT compilation). So, we have
+two types in items in the program after such a closure: declarations and definitions. Declarations are
+just function prototypes, when definitions are function prototypes combined with a function body.
+
+The datatype corresponding to our programm will be:
+
+```rust
+Vec<ASTNode>
+```
+
+where `ASTNode` is defined as
+
+```rust
+#[deriving(PartialEq, Clone, Show)]
+pub enum ASTNode {
+    ExternNode(Prototype),
+    FunctionNode(Function)
+}
+```
+
+`ExternNode` corresponds to the	`declaration` item in the grammar and `FunctionNode` corresponds to
+the `definition` item.
+
+We define `Prototype` and `Function` now according to the grammar:
+
+```{.ebnf .notation}
+definition       : Def prototype expression;
+prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+```
+
+```rust
+#[deriving(PartialEq, Clone, Show)]
+pub struct Prototype {
+    pub name: String,
+    pub args: Vec<String>
+}
+
+#[deriving(PartialEq, Clone, Show)]
+pub struct Function {
+    pub prototype: Prototype,
+    pub body: Expression
+}
+```
+
+Functions are typed only by the number of arguments, as the only type we have
+in the Kaleidoscope language is `f64` number.
+
+The only thing to define now is the data type corresponding to the `expression` item.
+This one is the most complicated and difficult to pasre, as it includes binary expressions
+with operator precedence.
+
+```{.ebnf .notation}
+expression       : [primary_expr | primary_expr Op expression];
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
+parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+```
+
+Expression data type will be just `enum` with entries corresponding to every
+possible expression type.
+
+```rust
+#[deriving(PartialEq, Clone, Show)]
+pub enum Expression {
+    LiteralExpr(f64),
+    VariableExpr(String),
+    BinaryExpr(String, Box<Expression>, Box<Expression>),
+    CallExpr(String, Vec<Expression>)
+}
+```
+
+`LiteralExpr` is a number (`Literal` token). `VariableExpr` is a variable name (`Ident` token).
+So far we have only one type of variables: function parameters. `BinaryExpr` has information about
+operator name and subexpressions. And `CallExpr` fully corresponds to its definition in the grammar.
+
+We did not need a representation for the `parenthesis_expr` item, as the precedence of
+evaluation is encoded in the tree formed by `BinaryExpr` itself, so parenthesis are
+used only during parsing.
+
+We can proceed with parsing now, as we know both our input format (the sequence of tokens) and the
+AST we want to have as the result of parsing.
 
 ## LLVM IR code generation
 
