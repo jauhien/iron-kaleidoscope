@@ -118,18 +118,18 @@ To create a REPL we will need (corresponding source files are shown in parenthes
 * the driver ([driver.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/driver.rs))
 
 We'll use [Cargo](http://doc.crates.io/) as a build system for this project. All sources will live in the `src` directory.
-Project will have two crates: library and binary. All the real functionality will be implemented in the library, and the binary will just
+Project will have two crates: library and binary. All real functionality will be implemented in the library, and the binary will just
 parse command line arguments and invoke the driver.
 
-[Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) is quite straight forward.
-The [docopt](https://github.com/docopt/docopt.rs) is added because we'll need to parse simple command libe arguments.
+[Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) is quite straightforward.
+The [docopt](https://github.com/docopt/docopt.rs) is added because we'll need to parse simple command line arguments.
 
 Rust at the moment does not have full LLVM bindings, so we'll need to add some functions. That addition is handled by a combination
 of [scripts called during compilation](http://doc.crates.io/build-script.html) and some rust code that can be found in `src/missing_llvm_bindings` directory.
 
 ### The lexer
 
-To implement the lexer we'll use a regular expressions. We have next types of tokens (and corresponding regexes given in the notation used by the Rust regex library):
+To implement the lexer we'll use regular expressions. We have the next types of tokens (and corresponding regexes given in the notation used by the Rust regex library):
 
 * def and extern keywords (`def|extern`)
 
@@ -208,19 +208,19 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 }
 ```
 
-Quite simple function. About regex in Rust you can read here: http://doc.rust-lang.org/regex/
+Quite simple function. About regex in Rust you can read [here](http://doc.rust-lang.org/regex/).
 
 Some comments: we create regex with different groups matching to different types of tokens.
-Then we match it on input string and iterate over captures,
+Then we match it on the input string and iterate over captures,
 looking what token we have matched. Identifiers are matched in the same regex with keywords, as they have the same microsyntax.
 They are separated later with the additional match.
 
-To experiment with this lexer you can create a simple main function that just reads lines from the input one by one and shows recognized tokens.
+To experiment with this lexer you can create a simple main function that reads lines from the input one by one and shows the recognized tokens.
 
 ## AST and parser implementation
 
-In this chapter we will build a parser for our Kaleidoscope language.
-First we need to define its grammar and how will we represent the parsing results.
+In this chapter we will build a parser for the Kaleidoscope language.
+First we need to define its grammar and how to represent the parsing results.
 Then we can use [Recursive Descent Parsing](http://en.wikipedia.org/wiki/Recursive_descent_parser)
 and [Operator-Precedence Parsing](http://en.wikipedia.org/wiki/Operator-precedence_parser)
 to produce [the Abstract Syntax Tree](http://en.wikipedia.org/wiki/Abstract_syntax_tree)
@@ -230,7 +230,7 @@ from the stream of tokens recognized by the lexer.
 
 This grammar description uses the dialect of Extended Backus-Naur Form (EBNF) described
 in the [Rust reference](http://doc.rust-lang.org/reference.html#notation). Identifiers
-that start with the lowercase name non-terminals, when identifiers that start
+that start with the lowercase name non-terminals. Identifiers that start
 with the uppercase name terminals and correspond to the names in the `Token` enum defined
 in the lexer.
 
@@ -255,11 +255,11 @@ program          : [[statement | expression] Delimiter ? ]*;
 ```
 
 Program is a sequence of statements and expressions. To make life easier in the future we will
-close every expression in an anonymous function (we'll use this during JIT compilation). So, we have
+close every expression in an anonymous function (we'll use this during JIT compilation). So, there are
 two types of items in the program after such a closure: declarations and definitions. Declarations are
 just function prototypes, when definitions are function prototypes combined with a function body.
 
-The data type corresponding to our programm will be:
+The data type corresponding to the programm will be:
 
 ```rust
 Vec<ASTNode>
@@ -278,7 +278,7 @@ pub enum ASTNode {
 `ExternNode` corresponds to the	`declaration` item in the grammar and `FunctionNode` corresponds to
 the `definition` item.
 
-We define `Prototype` and `Function` now according to the grammar:
+We define `Prototype` and `Function` according to the grammar:
 
 ```{.ebnf .notation}
 definition       : Def prototype expression;
@@ -299,11 +299,11 @@ pub struct Function {
 }
 ```
 
-Functions are typed only by the number of arguments, as the only type we have
-in the Kaleidoscope language is `f64` number.
+Functions are typed only by the number of arguments, as the onliest type
+in the Kaleidoscope language is an `f64` number.
 
-The only thing to define now is the data type corresponding to the `expression` item.
-This one is the most complicated and difficult to pasre, as it includes binary expressions
+The only thing left to define is the data type that corresponds to the `expression` item.
+This one is the most complicated and difficult to parse, as it includes binary expressions
 with operator precedence.
 
 ```{.ebnf .notation}
@@ -314,7 +314,7 @@ parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
 
 `Expression` data type will be an `enum` with entries corresponding to every
-possible expression type.
+possible expression type:
 
 ```rust
 #[deriving(PartialEq, Clone, Show)]
@@ -331,11 +331,11 @@ So far we have only one type of variables: function parameters. `BinaryExpr` has
 operator name and subexpressions. And `CallExpr` fully corresponds to its definition in the grammar.
 
 We did not need a representation for the `parenthesis_expr` item, as the precedence of
-evaluation is encoded in the tree formed by `BinaryExpr` itself, so parenthesis are
+evaluation is encoded in the tree formed by `BinaryExpr`, so parenthesis are
 used only during parsing.
 
-We can proceed with parsing now, as we know both our input format (the sequence of tokens) and the
-AST we want to have as the result of parsing.
+Now we can proceed with parsing, as both our input format (the sequence of tokens) and the
+AST we want to have as the result of parsing are known.
 
 ## LLVM IR code generation
 
