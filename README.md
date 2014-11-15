@@ -254,12 +254,12 @@ Now we'll create data types corresponding to every item in the Kaleidoscope gram
 program          : [[statement | expression] Delimiter ? ]*;
 ```
 
-Program is just a sequence of statements and expressions. To make life easier in the future we will
+Program is a sequence of statements and expressions. To make life easier in the future we will
 close every expression in an anonymous function (we'll use this during JIT compilation). So, we have
-two types in items in the program after such a closure: declarations and definitions. Declarations are
+two types of items in the program after such a closure: declarations and definitions. Declarations are
 just function prototypes, when definitions are function prototypes combined with a function body.
 
-The datatype corresponding to our programm will be:
+The data type corresponding to our programm will be:
 
 ```rust
 Vec<ASTNode>
@@ -313,7 +313,7 @@ call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenth
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
 
-Expression data type will be just `enum` with entries corresponding to every
+`Expression` data type will be an `enum` with entries corresponding to every
 possible expression type.
 
 ```rust
