@@ -130,19 +130,19 @@ of [scripts called during compilation](http://doc.crates.io/build-script.html) a
 
 To implement the lexer we'll use a regular expressions. We have next types of tokens (and corresponding regexes given in the notation used by the Rust regex library):
 
-* def and extern keywords (def|extern)
+* def and extern keywords (`def|extern`)
 
-* identifier (\p{Alphabetic}\w*)
+* identifier (`\p{Alphabetic}\w*`)
 
-* number literal (\d+\.?\d*)
+* number literal (`\d+\.?\d*`)
 
-* semicolon (;)
+* semicolon (`;`)
 
-* opening and closing parenthesis (\(|\))
+* opening and closing parenthesis (`\(|\)`)
 
-* comma (,)
+* comma (`,`)
 
-* operator (\S)
+* operator (`\S`)
 
 The corresponding enumeration looks like this:
 
