@@ -15,6 +15,8 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
 * [Parser and AST implementation](#ast-and-parser-implementation)
   * [The grammar](#the-grammar)
   * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
+  * [Parser implementation: introduction](#parser-implementation-introduction)
+  * [Top level parse function](*top-level-parse-function)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -336,6 +338,129 @@ used only during parsing.
 
 Now we can proceed with parsing, as both our input format (the sequence of tokens) and the
 AST we want to have as the result of parsing are known.
+
+### Parser implementation: introduction
+
+Before starting parser implementation we should think about one general question: how will REPL receive the input and
+how should it work with it. Basically, REPL should allow user to type statements line by line, parsing
+every line as it is entered. If the line contains not finished statement, REPL should consume line by line until
+it has something finished that can be interpreted (either declaration/definition or free expression).
+
+As an input we can accept two variables: already parsed AST and tokens that we still need to parse:
+
+```rust
+tokens : &[Token], parsed_tree : &[ASTNode]
+```
+
+As a result we will have again pair of a parsed AST and tokens that were not parsed because they form nothing finished.
+Also we need some kind of error handling. It will be achieved by the usage of `Result` with an error message:
+
+```rust
+pub type ParsingResult = Result<(Vec<ASTNode>, Vec<Token>), String>;
+```
+
+The function prototype for the parsing function looks like this:
+
+```rust
+pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult;
+```
+
+At the moment `ParserSettings` can be just an empty `enum`, in the nearest future we will use them for handling
+binary expressions (they will contain information about operator precedence). They are mutable because later on
+we may want to add some dynamically defined constructions to the language that will need additional information
+to be stored in the parser settings.
+
+### Top level parse function
+
+The majority of the parsing will be done by the recursive descent parser. This kind of parsers is easy for understanding
+and implementation. Every production rule in the grammar has a corresponding function, these functions call
+each other according to the production rules.
+
+We will need to handle input tokens efficiently, being able to pick them one by one, or return back to the input vector,
+this can be easily achieved if we reverse this vector. Adding and removing elements at the end of a vector is quite
+efficient.
+
+Helper parsing functions will accept unparsed tokens as their input.
+They will have three possible results:
+
+* AST node was parsed, pair of `ASTNode` and not consumed tokens should be returned
+* input token sequence in not complete, no tokens from the input should be consumed
+* an error happend, error message should be returned
+
+Corresponding result data type looks like this:
+
+```rust
+enum PartParsingResult<T> {
+    Good(T, Vec<Token>),
+    NotComplete,
+    Bad(String)
+}
+```
+
+We will need a helper function for error generation:
+
+```rust
+fn error<T>(message : &str) -> PartParsingResult<T> {
+    Bad(message.to_string())
+}
+```
+
+We can implement first production rules in the topmost parsing function now:
+
+```{.ebnf .notation}
+program          : [[statement | expression] Delimiter ? ]*;
+statement        : [declaration | definition];
+declaration      : Extern prototype;
+definition       : Def prototype expression;
+```
+
+As one can see from this piece of grammar, we have 3 top level items.
+Parser will decide which one it handles at the moment based on the
+token it sees:
+
+* `Def` token means we have definition
+* `Extern` token means declaration
+* `Delimiter` token can be just ignored
+* any other token can be interpreted as the beginning of an expression (as there is no other possibility)
+
+With these points in mind we can implement the `parse` function this way:
+
+```rust
+pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult {
+    let mut rest = tokens.to_vec();
+    // we read tokens from the end of the vector
+    // using it as a stack
+    rest.reverse();
+
+    // we will add new AST nodes to already parsed ones
+    let mut ast = parsed_tree.to_vec();
+
+    loop {
+        // look at the current token and determine what to parse
+        // based on its value
+        let cur_token =
+            match rest.last() {
+                Some(token) => token.clone(),
+                None => break
+            };
+        let result = match cur_token {
+            Def => parse_function(&mut rest, settings),
+            Extern => parse_extern(&mut rest, settings),
+            Delimiter => {rest.pop(); continue},
+            _ => parse_expression(&mut rest, settings)
+        };
+        match result {
+            Good(ast_node, _) => ast.push(ast_node),
+            NotComplete => break,
+            Bad(message) => return Err(message)
+        }
+    }
+
+    // unparsed tokens
+    rest.reverse();
+    Ok((ast, rest))
+}
+```
 
 ## LLVM IR code generation
 

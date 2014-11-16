@@ -59,11 +59,16 @@ pub fn default_parser_settings() -> ParserSettings {
 
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult {
     let mut rest = tokens.to_vec();
+    // we read tokens from the end of the vector
+    // using it as a stack
     rest.reverse();
 
+    // we will add new AST nodes to already parsed ones
     let mut ast = parsed_tree.to_vec();
 
     loop {
+        // look at the current token and determine what to parse
+        // based on its value
         let cur_token =
             match rest.last() {
                 Some(token) => token.clone(),
@@ -82,6 +87,7 @@ pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut Parser
         }
     }
 
+    // unparsed tokens
     rest.reverse();
     Ok((ast, rest))
 }
