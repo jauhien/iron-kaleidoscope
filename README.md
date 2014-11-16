@@ -17,6 +17,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
   * [Parser implementation: introduction](#parser-implementation-introduction)
   * [Top level parse function](#top-level-parse-function)
+  * [Helper macros for work with tokens](#helper-macros-for-work-with-tokens)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -464,6 +465,100 @@ pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut Parser
     Ok((ast, rest))
 }
 ```
+
+### Helper macros for work with tokens
+
+As was mentioned before we can have as input both complete and non-complete language sentences.
+We need to consume all the tokens that correspond to the complete sentences and leave the
+rest untouched. To make life easier we will use macros to work with tokens and parsing results.
+
+We will maintain a list of tokens that correspond to the sentence being parsed now in every
+parsing functions. If input tokens are exhausted before we have parsed the whole item, we will insert them
+back. If parsing is successful, we will return both parsed item and tokens that correspond to it.
+If parsing has failed, that we will inform caller about this failure.
+
+First macros we need will handle calling of other parsing functions. The parsing function signature looks like this:
+
+```rust
+fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, ...) -> PartParsingResult<T>;
+```
+
+where `...` means additional parameters.
+
+The calling macro looks like this:
+
+```rust
+macro_rules! parse_try(
+    ($function:ident, $tokens:ident, $settings:ident, $parsed_tokens:ident) => (
+        parse_try!($function, $tokens, $settings, $parsed_tokens,)
+    );
+
+    ($function:ident, $tokens:ident, $settings:ident, $parsed_tokens:ident, $($arg:expr),*) => (
+        match $function($tokens, $settings, $($arg),*) {
+            Good(ast, toks) => {
+                $parsed_tokens.extend(toks.into_iter());
+                ast
+            },
+            NotComplete => {
+                $parsed_tokens.reverse();
+                $tokens.extend($parsed_tokens.into_iter());
+                return NotComplete;
+            },
+            Bad(message) => return Bad(message)
+        }
+    )
+)
+```
+
+It declares two variants: with and without additional parameters. The first one calls the second one with zero additional
+parameters.
+
+The macro calls the parsing function and looks at the results. If results are good, we extend already parsed tokens with
+those returned from the parsing function and have the parsed AST as value of the macro. If called function
+returned `NotComplete`, we insert parsed tokens back into the input and also return `NotComplete`. Note, that our temporary
+parsed_tokens are stored in the direct way, when the input was stored in the reversed way, so we need to reverse it
+before inserting back. If called function failed, we also return a failure.
+
+Next macro we need is a macro that works directly with input tokens. It will look at the current token and try to match it.
+We need two variants. One tries to match with different provided alternatives, if no one matches, it failes with error. Other
+also tries to match with different alternatives, but if no one is matched, it just executes the action given as a parameter. In the
+last case no tokens from the input should be consumed by the macro itself.
+
+```rust
+macro_rules! expect_token (
+    ([ $($token:pat, $value:expr, $result:stmt);+ ] <= $tokens:ident, $parsed_tokens:ident, $error:expr) => (
+        match $tokens.pop() {
+            $(
+                Some($token) => {
+                    $parsed_tokens.push($value);
+                    $result
+                },
+             )+
+             None => {
+                 $parsed_tokens.reverse();
+                 $tokens.extend($parsed_tokens.into_iter());
+                 return NotComplete;
+             },
+            _ => return error($error)
+        }
+    );
+    ([ $($token:pat, $value:expr, $result:stmt);+ ] else $not_matched:block <= $tokens:ident, $parsed_tokens:ident) => (
+        match $tokens.last().map(|i| {i.clone()}) {
+            $(
+                Some($token) => {
+                    $tokens.pop();
+                    $parsed_tokens.push($value);
+                    $result
+                },
+             )+
+            _ => {$not_matched}
+        }
+    )
+)
+```
+
+This macro automatically handles inserting tokens into the parsed tokens vector and returning of `NotComplete` (together with
+inserting of tokens back into the input vector) or error in the appropriate cases.
 
 ## LLVM IR code generation
 
