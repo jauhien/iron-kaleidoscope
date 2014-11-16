@@ -16,7 +16,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [The grammar](#the-grammar)
   * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
   * [Parser implementation: introduction](#parser-implementation-introduction)
-  * [Top level parse function](*top-level-parse-function)
+  * [Top level parse function](#top-level-parse-function)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
