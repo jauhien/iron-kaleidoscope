@@ -383,7 +383,7 @@ efficient.
 Helper parsing functions will accept unparsed tokens as their input.
 They will have three possible results:
 
-* AST node was parsed, pair of `ASTNode` and not consumed tokens should be returned
+* AST node was parsed, pair of `ASTNode` and consumed tokens that correspond to it should be returned
 * input token sequence in not complete, no tokens from the input should be consumed
 * an error happend, error message should be returned
 
