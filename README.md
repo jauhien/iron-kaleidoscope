@@ -630,7 +630,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
         ] <= tokens, parsed_tokens, "expected ')' in prototype");
     }
 
-    Good(Prototype{name: name, args: args, ftype: ftype}, parsed_tokens)
+    Good(Prototype{name: name, args: args}, parsed_tokens)
 }
 ```
 
@@ -647,7 +647,7 @@ further work with them easier, we close them in an anonymous function.
 fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
     let mut parsed_tokens = Vec::new();
     let expression = parse_try!(parse_expr, tokens, settings, parsed_tokens);
-    let prototype = Prototype{name: "".to_string(), args: vec![], ftype: Normal};
+    let prototype = Prototype{name: "".to_string(), args: vec![]};
     let lambda = Function{prototype: prototype, body: expression};
     Good(FunctionNode(lambda), parsed_tokens)
 }
