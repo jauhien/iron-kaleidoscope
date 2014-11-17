@@ -18,6 +18,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Parser implementation: introduction](#parser-implementation-introduction)
   * [Top level parse function](#top-level-parse-function)
   * [Helper macros for work with tokens](#helper-macros-for-work-with-tokens)
+  * [Parsing of statements and top level expressions](#parsing-of-statements-and-top-level-expressions)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -559,6 +560,101 @@ macro_rules! expect_token (
 
 This macro automatically handles inserting tokens into the parsed tokens vector and returning of `NotComplete` (together with
 inserting of tokens back into the input vector) or error in the appropriate cases.
+
+###Parsing of statements and top level expressions
+
+We have two kinds of statements in the Kaleidoscope language: function
+declarations and function definitions:
+
+```{.ebnf .notation}
+statement        : [declaration | definition];
+declaration      : Extern prototype;
+definition       : Def prototype expression;
+```
+
+Let's start from the easier one: function declarations. The function is really straightforward:
+
+```rust
+fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    // eat Extern token
+    tokens.pop();
+    let mut parsed_tokens = vec![Extern];
+    let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
+    Good(ExternNode(prototype), parsed_tokens)
+}
+```
+
+We eat `Extern` token and parse the function prototype. That's all.
+
+Function definition is not very complicated also:
+
+```rust
+fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    // eat Def token
+    tokens.pop();
+    let mut parsed_tokens = vec!(Def);
+    let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
+    let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+    Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
+}
+```
+
+Again, we eat `Def` token, we parse prototype and function body. That's all.
+
+So far we just called another parsing functions and matched some tokens (like `Def` or `Extern`).
+That's time for some real parsing now.
+
+```{.ebnf .notation}
+prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+```
+
+```rust
+#[allow(unused_variables)]
+fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
+    let mut parsed_tokens = Vec::new();
+
+    let name = expect_token!([
+            Ident(name), Ident(name.clone()), name
+        ] <= tokens, parsed_tokens, "expected function name in prototype");
+
+    expect_token!(
+        [OpeningParenthesis, OpeningParenthesis, ()] <= tokens,
+        parsed_tokens, "expected '(' in prototype");
+
+    let mut args = Vec::new();
+    loop {
+        expect_token!([
+            Ident(arg), Ident(arg.clone()), args.push(arg.clone());
+            Comma, Comma, continue;
+            ClosingParenthesis, ClosingParenthesis, break
+        ] <= tokens, parsed_tokens, "expected ')' in prototype");
+    }
+
+    Good(Prototype{name: name, args: args, ftype: ftype}, parsed_tokens)
+}
+```
+
+Function prototype starts with the function name. Then opening parenthesis goes.
+After opening parenthesis we have a list of function parameters (`Ident` tokens).
+Note, that we ignore `Comma` tokens, so they are equivalent to whitspaces (like
+in old good Clojure language). If we find a closing parenthesis, prototype
+parsing is done. If we find any other token we emit an error.
+
+The only top level item still left are top level expressions. To make
+further work with them easier, we close them in an anonymous function.
+
+```rust
+fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    let mut parsed_tokens = Vec::new();
+    let expression = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+    let prototype = Prototype{name: "".to_string(), args: vec![], ftype: Normal};
+    let lambda = Function{prototype: prototype, body: expression};
+    Good(FunctionNode(lambda), parsed_tokens)
+}
+```
+
+Now, when we have code that handles parsing of all top level items, we can proceed
+with parsing of the main part of Kaleidoscope language -- expressions.
 
 ## LLVM IR code generation
 
