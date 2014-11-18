@@ -392,6 +392,7 @@ fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
 }
 
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    // eat the opening parenthesis
     tokens.pop();
     let mut parsed_tokens = vec![OpeningParenthesis];
 

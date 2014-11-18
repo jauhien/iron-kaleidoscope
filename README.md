@@ -18,6 +18,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Parser implementation: introduction](#parser-implementation-introduction)
   * [Top level parse function](#top-level-parse-function)
   * [Helper macros for work with tokens](#helper-macros-for-work-with-tokens)
+  * [Parsing of primary expressions](#parsing-of-primary-expressions)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -559,6 +560,108 @@ macro_rules! expect_token (
 
 This macro automatically handles inserting tokens into the parsed tokens vector and returning of `NotComplete` (together with
 inserting of tokens back into the input vector) or error in the appropriate cases.
+
+### Parsing of primary expressions
+
+We will start from easier topic: parsing of primary expressions. Then we will use primary
+expressions parsing functions to parse operands of binary operators.
+
+```{.ebnf .notation}
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
+parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+```
+
+```rust
+fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    match tokens.last() {
+        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        None => return NotComplete,
+        _ => error("unknow token when expecting an expression")
+    }
+}
+```
+
+To start parsing of a primary expression we just look at the next token and
+decide which kind of expression we are working with. Such a look ahead one or more tokens
+is a common idea in parsers. we already have seen it before in the top level parse function.
+
+We start with parsing of identifier and call expression. We use the same parsing function
+for them, as they both start from the `Ident` token.
+
+```rust
+fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    let mut parsed_tokens = Vec::new();
+
+    let name = expect_token!(
+        [Ident(name), Ident(name.clone()), name] <= tokens,
+        parsed_tokens, "identificator expected");
+
+    expect_token!(
+        [OpeningParenthesis, OpeningParenthesis, ()]
+        else {return Good(VariableExpr(name), parsed_tokens)}
+        <= tokens, parsed_tokens);
+
+    let mut args = Vec::new();
+    loop {
+        expect_token!(
+            [ClosingParenthesis, ClosingParenthesis, break;
+             Comma, Comma, continue]
+            else {
+                args.push(parse_try!(parse_expr, tokens, settings, parsed_tokens));
+            }
+            <= tokens, parsed_tokens);
+    }
+
+    Good(CallExpr(name, args), parsed_tokens)
+}
+```
+
+First, we parse the name (it will be the name of variable or function to call).
+then we look at the next token. If it is an opening parenthesis, then we have a function call.
+If it is any other token, then we have a variable referenced and we can already return
+a `VariableExpr`.
+
+Next (as we have a call expression) we parse a list of arguments to the function. It is
+done the same way as in prototype. The only difference is that arguments are not identifiers,
+but expressions now.
+
+Parsing of literal expressions is very straightforward:
+
+```rust
+#[allow(unused_variables)]
+fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    let mut parsed_tokens = Vec::new();
+
+    let value = expect_token!(
+              [Number(val), Number(val), val] <= tokens,
+        parsed_tokens, "literal expected");
+
+    Good(LiteralExpr(value), parsed_tokens)
+}
+```
+
+Parenthesis expressions are also easy to parse:
+
+```rust
+fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    // eat the opening parenthesis
+    tokens.pop();
+    let mut parsed_tokens = vec![OpeningParenthesis];
+
+    let expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    expect_token!(
+        [ClosingParenthesis, ClosingParenthesis, ()] <= tokens,
+        parsed_tokens, "')' expected");
+
+    Good(expr, parsed_tokens)
+}
+```
+
+Now, when we can parse primary expressions, it is the time for more complicated ones.
 
 ## LLVM IR code generation
 
