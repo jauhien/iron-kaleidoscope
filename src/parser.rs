@@ -155,6 +155,7 @@ macro_rules! expect_token (
 )
 
 fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    // eat Def token
     tokens.pop();
     let mut parsed_tokens = vec!(Def);
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
@@ -171,6 +172,7 @@ fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
 }
 
 fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    // eat Extern token
     tokens.pop();
     let mut parsed_tokens = vec![Extern];
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
@@ -237,8 +239,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
         _ => ()
     };
 
-    let prototype = Prototype{name: name, args: args, ftype: ftype};
-    Good(prototype, parsed_tokens)
+    Good(Prototype{name: name, args: args, ftype: ftype}, parsed_tokens)
 }
 
 fn parse_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
