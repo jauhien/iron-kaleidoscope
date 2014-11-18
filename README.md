@@ -682,9 +682,9 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) 
 
 To start parsing of a primary expression we just look at the next token and
 decide which kind of expression we are working with. Such a look ahead one or more tokens
-is a common idea in parsers. we already have seen it before in the top level parse function.
+is a common idea in parsers, we already have seen it before in the top level parse function.
 
-We start with parsing of identifier and call expression. We use the same parsing function
+We start with parsing of identifier and call expressions. We use the same parsing function
 for them, as they both start from the `Ident` token.
 
 ```rust
@@ -715,10 +715,10 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
 }
 ```
 
-First, we parse the name (it will be the name of variable or function to call).
-then we look at the next token. If it is an opening parenthesis, then we have a function call.
-If it is any other token, then we have a variable referenced and we can already return
-a `VariableExpr`.
+First, we parse the name (it will be the name of a variable or function to call).
+Then we look at the next token. If it is an opening parenthesis, then we have a function call.
+If it is any other token, then we have a variable referenced and we can return
+a `VariableExpr` already.
 
 Next (as we have a call expression) we parse a list of arguments to the function. It is
 done the same way as in prototype. The only difference is that arguments are not identifiers,
