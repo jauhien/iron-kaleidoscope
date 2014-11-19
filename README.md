@@ -245,7 +245,7 @@ statement        : [declaration | definition];
 declaration      : Extern prototype;
 definition       : Def prototype expression;
 prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
-expression       : [primary_expr | primary_expr Op expression];
+expression       : [primary_expr (Op primary_expr)*];
 primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
@@ -312,7 +312,7 @@ This one is the most complicated and difficult to parse, as it includes binary e
 with operator precedence.
 
 ```{.ebnf .notation}
-expression       : [primary_expr | primary_expr Op expression];
+expression       : [primary_expr (Op primary_expr)*];
 primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
@@ -337,7 +337,9 @@ operator name and subexpressions. And `CallExpr` fully corresponds to its defini
 
 We did not need a representation for the `parenthesis_expr` item, as the precedence of
 evaluation is encoded in the tree formed by `BinaryExpr`, so parenthesis are
-used only during parsing.
+used only during parsing. Also, note that `Expression` definition not fully corresponds to the grammar
+(grammar has a sequence of primary expressions devided by operators, when here we have a binary tree
+of binary expressions), we will speak about it later in the section about binary expressions parsing.
 
 Now we can proceed with parsing, as both our input format (the sequence of tokens) and the
 AST we want to have as the result of parsing are known.
