@@ -20,6 +20,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Helper macros for work with tokens](#helper-macros-for-work-with-tokens)
   * [Parsing of statements and top level expressions](#parsing-of-statements-and-top-level-expressions)
   * [Parsing of primary expressions](#parsing-of-primary-expressions)
+  * [Parsing of binary expressions](#parsing-of-binary-expressions)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -760,6 +761,48 @@ fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettin
 ```
 
 Now, when we can parse primary expressions, it is the time for more complicated ones.
+
+### Parsing of binary expressions
+
+Our grammar for expressions looked like this:
+
+```{.ebnf .notation}
+expression       : [primary_expr (Op primary_expr)*];
+```
+
+The problem with this grammar is that it really does not reveal the semantics of binary expressions.
+It is the correct generative grammar. Note however, that we want not just check expressions syntactic correctness,
+but have some structure that can be used for code generation (binary tree in this case) that
+includes information about operators precedence, so we can not use this grammar for parsing.
+
+Basically speaking, we could take an information about operator precedence and reformulate our grammar,
+so it reveals semantic correctly and try to use it to create a parser similar to that we already
+have for other types of items. But we will use an [operator precedence parser](http://en.wikipedia.org/wiki/Operator-precedence_parser)
+instead as it is much faster for such kind of things. Real compilers also frequently use it for parsing of
+expressions. If they are not Lisp language compilers, of course.
+
+We will keep information about operator precedence in a map. That's where our `settings` structure is needed:
+
+```rust
+pub struct ParserSettings {
+    operator_precedence: HashMap<String, i32>
+}
+```
+
+Let's create a function that fills this map with some operators:
+
+```rust
+pub fn default_parser_settings() -> ParserSettings {
+    let mut operator_precedence = HashMap::new();
+    operator_precedence.insert("=".to_string(), 2);
+    operator_precedence.insert("<".to_string(), 10);
+    operator_precedence.insert("+".to_string(), 20);
+    operator_precedence.insert("-".to_string(), 20);
+    operator_precedence.insert("*".to_string(), 40);
+
+    ParserSettings{operator_precedence: operator_precedence}
+}
+```
 
 ## LLVM IR code generation
 
