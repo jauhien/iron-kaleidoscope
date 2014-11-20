@@ -194,7 +194,7 @@ pub use self::Token::{
 };
 ```
 
-We do not mention those uses explicitely in the following.
+We do not mention those uses explicitly in the following.
 
 Our parser function will accept a string with input characters and produce a vector of tokens. It will look like this:
 
