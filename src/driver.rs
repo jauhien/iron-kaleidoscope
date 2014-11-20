@@ -4,6 +4,13 @@ use builder::*;
 use lexer::*;
 use parser::*;
 
+pub use self::Stage::{
+    Tokens,
+    AST,
+    IR,
+    Exec
+};
+
 #[deriving(PartialEq, Clone, Show)]
 pub enum Stage {
     Tokens,

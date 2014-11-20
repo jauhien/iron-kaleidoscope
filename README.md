@@ -168,6 +168,34 @@ pub enum Token {
 }
 ```
 
+Note, that to use enumeration members without scopes as we later do, you need to
+add some uses at the beginning of your module (it is needed since changing
+enums to be scoped in Rust):
+
+```rust
+pub use self::Token::{
+    Def,
+    Extern,
+    If,
+    Then,
+    Else,
+    For,
+    In,
+    Binary,
+    Unary,
+    Var,
+    Delimiter,
+    OpeningParenthesis,
+    ClosingParenthesis,
+    Comma,
+    Ident,
+    Number,
+    Operator
+};
+```
+
+We do not mention those uses explicitely in the following.
+
 Our parser function will accept a string with input characters and produce a vector of tokens. It will look like this:
 
 ```rust

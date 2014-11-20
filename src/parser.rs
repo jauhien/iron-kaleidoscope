@@ -2,6 +2,34 @@ use std::collections::HashMap;
 
 use lexer::*;
 
+pub use self::Expression::{
+    LiteralExpr,
+    VariableExpr,
+    UnaryExpr,
+    BinaryExpr,
+    CallExpr,
+    ConditionalExpr,
+    LoopExpr,
+    VarExpr
+};
+
+pub use self::FunctionType::{
+    Normal,
+    UnaryOp,
+    BinaryOp
+};
+
+pub use self::ASTNode::{
+    ExternNode,
+    FunctionNode
+};
+
+use self::PartParsingResult::{
+    Good,
+    NotComplete,
+    Bad
+};
+
 pub struct ParserSettings {
     operator_precedence: HashMap<String, i32>
 }
@@ -13,9 +41,9 @@ pub enum Expression {
     UnaryExpr(String, Box<Expression>),
     BinaryExpr(String, Box<Expression>, Box<Expression>),
     CallExpr(String, Vec<Expression>),
-    ConditionalExpr{pub cond_expr: Box<Expression>, pub then_expr: Box<Expression>, pub else_expr: Box<Expression>},
-    LoopExpr{pub var_name: String, pub start_expr: Box<Expression>, pub end_expr: Box<Expression>, pub step_expr: Box<Expression>, pub body_expr: Box<Expression>},
-    VarExpr{pub vars: Vec<(String, Expression)>, pub body_expr: Box<Expression>}
+    ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
+    LoopExpr{var_name: String, start_expr: Box<Expression>, end_expr: Box<Expression>, step_expr: Box<Expression>, body_expr: Box<Expression>},
+    VarExpr{vars: Vec<(String, Expression)>, body_expr: Box<Expression>}
 }
 
 #[deriving(PartialEq, Clone, Show)]

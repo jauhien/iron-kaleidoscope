@@ -1,3 +1,23 @@
+pub use self::Token::{
+    Def,
+    Extern,
+    If,
+    Then,
+    Else,
+    For,
+    In,
+    Binary,
+    Unary,
+    Var,
+    Delimiter,
+    OpeningParenthesis,
+    ClosingParenthesis,
+    Comma,
+    Ident,
+    Number,
+    Operator
+};
+
 #[deriving(PartialEq, Clone, Show)]
 pub enum Token {
     Def,
