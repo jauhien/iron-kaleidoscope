@@ -2,18 +2,18 @@
 name = "iron-kaleidoscope"
 version = "0.0.1"
 dependencies = [
- "docopt_macros 0.6.5 (git+git://github.com/docopt/docopt.rs)",
+ "docopt_macros 0.6.8 (git+git://github.com/docopt/docopt.rs)",
 ]
 
 [[package]]
 name = "docopt"
 version = "0.6.8"
-source = "git+git://github.com/docopt/docopt.rs#2343b49bc9de6c6c5802aad8b7e1b778f0abf7b0"
+source = "git+git://github.com/docopt/docopt.rs#be2e3b6b91ab1912d79f1e840d9397dead6e6a6e"
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.5"
-source = "git+git://github.com/docopt/docopt.rs#2343b49bc9de6c6c5802aad8b7e1b778f0abf7b0"
+version = "0.6.8"
+source = "git+git://github.com/docopt/docopt.rs#be2e3b6b91ab1912d79f1e840d9397dead6e6a6e"
 dependencies = [
  "docopt 0.6.8 (git+git://github.com/docopt/docopt.rs)",
 ]
