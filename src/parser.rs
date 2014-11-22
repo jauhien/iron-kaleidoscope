@@ -447,10 +447,13 @@ fn parse_unary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
 }
 
 fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, expr_precedence : i32, lhs : &Expression) -> PartParsingResult<Expression> {
+    // start with LHS value
     let mut result = lhs.clone();
     let mut parsed_tokens = Vec::new();
 
     loop {
+        // continue until the current token is not an operator
+        // or it is an operator with precedence lesser than expr_precedence
         let (operator, precedence) = match tokens.last() {
             Some(&Operator(ref op)) => match settings.operator_precedence.get(op) {
                 Some(pr) if *pr >= expr_precedence => (op.clone(), *pr),
@@ -462,10 +465,11 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
         tokens.pop();
         parsed_tokens.push(Operator(operator.clone()));
 
-        let mut rhs;
-        let primary_rhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
-        rhs = primary_rhs;
+        // parse primary RHS expression
+        let mut rhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
 
+        // parse all the RHS operators until their precedence is
+        // bigger than the current one
         loop {
             let binary_rhs = match tokens.last().map(|i| {i.clone()}) {
                 Some(Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
@@ -481,6 +485,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
             rhs = binary_rhs;
         }
 
+        // merge LHS and RHS
         result = BinaryExpr(operator, box result, box rhs);
     }
 

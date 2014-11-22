@@ -832,6 +832,91 @@ pub fn default_parser_settings() -> ParserSettings {
 }
 ```
 
+A binary expression is a primary expression followed by zero or more (operator, primary expression) pairs.
+The expression parsing function looks like this:
+
+```rust
+fn parse_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    let mut parsed_tokens = Vec::new();
+    let lhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
+    let expr = parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, 0, &lhs);
+    Good(expr, parsed_tokens)
+}
+```
+
+`parse_binary_expr` will return LHS if there are no (operator, primary expression) pairs or parse the whole expression.
+
+To parse a binary expression we will use the following algorithm. Its input is:
+
+* LHS of an expression
+
+* input tokens
+
+* the minimal allowed operator precedence
+
+We will build the resulting value starting from LHS. We will eat
+operators with the precedence bigger than the minimal allowed
+precedence one by one, constructing the RHS value. RHS construction we
+will start from the primary expression. To group operators
+correctly, we will call `parse_binary_expr` on the
+operators with the precedence bigger than the precedence of the
+current operator to make it parse the whole RHS. Then we will
+construct the resulting value and use it as the new LHS. We will
+continue until the current token is not an operator, or it is an
+operator with the precedence lesser than the minimal allowed one.
+
+```rust
+fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, expr_precedence : i32, lhs : &Expression) -> PartParsingResult<Expression> {
+    // start with LHS value
+    let mut result = lhs.clone();
+    let mut parsed_tokens = Vec::new();
+
+    loop {
+        // continue until the current token is not an operator
+        // or it is an operator with precedence lesser than expr_precedence
+        let (operator, precedence) = match tokens.last() {
+            Some(&Operator(ref op)) => match settings.operator_precedence.get(op) {
+                Some(pr) if *pr >= expr_precedence => (op.clone(), *pr),
+                None => return error("unknown operator found"),
+                _ => break
+            },
+            _ => break
+        };
+        tokens.pop();
+        parsed_tokens.push(Operator(operator.clone()));
+
+        // parse primary RHS expression
+        let mut rhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
+
+        // parse all the RHS operators until their precedence is
+        // bigger than the current one
+        loop {
+            let binary_rhs = match tokens.last().map(|i| {i.clone()}) {
+                Some(Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
+                    Some(pr) if pr > precedence => {
+                        parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, pr, &rhs)
+                    },
+                    None => return error("unknown operator found"),
+                    _ => break
+                },
+                _ => break
+            };
+
+            rhs = binary_rhs;
+        }
+
+        // merge LHS and RHS
+        result = BinaryExpr(operator, box result, box rhs);
+    }
+
+    Good(result, parsed_tokens)
+}
+```
+
+That's how parsing of binary expressions looks like.
+
+*TODO:* add an example.
+
 ## LLVM IR code generation
 
 ## JIT and optimizer support
