@@ -21,6 +21,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Parsing of statements and top level expressions](#parsing-of-statements-and-top-level-expressions)
   * [Parsing of primary expressions](#parsing-of-primary-expressions)
   * [Parsing of binary expressions](#parsing-of-binary-expressions)
+  * [The driver](#the-driver)
 * [LLVM IR code generation](#llvm-ir-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -916,6 +917,105 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
 That's how parsing of binary expressions looks like.
 
 *TODO:* add an example.
+
+### The driver
+
+That's time to construct a working program from already defined
+functions. Our simple REPL will read input line by line. It will write
+the parsed AST back to the user when it has some finished
+expression(s). Until this it will ask user to write additional lines
+to the current expression. On error it will display an error message.
+
+Additionally we will add possibility to call only the parser. Let's
+start from command line options parsing. We will use
+[docopt](https://github.com/docopt/docopt.rs) library for this:
+
+```rust
+docopt!(Args, "
+Usage: iron_kaleidoscope [(-l | -p | -i)]
+
+Options:
+    -l  Run only lexer and show its output.
+    -p  Run only parser and show its output.
+")
+
+#[cfg(not(test))]
+fn main() {
+    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+
+    let stage = if args.flag_l {
+        Tokens
+    } else {
+        AST
+    };
+
+    main_loop(stage);
+}
+```
+
+The `Stage` enum is defined in the driver:
+
+```rust
+#[deriving(PartialEq, Clone, Show)]
+pub enum Stage {
+    Tokens,
+    AST
+}
+```
+
+Driver itself looks like this:
+
+```rust
+pub fn main_loop(stage: Stage) {
+    let mut parser_settings = default_parser_settings();
+
+    'main: loop {
+        print!(">");
+        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
+        if input.as_slice() == ".quit\n" {
+            break;
+        }
+
+        // the constructed AST
+        let mut ast = Vec::new();
+        // tokens left from the previous lines
+        let mut prev = Vec::new();
+        loop {
+            let tokens = tokenize(input.as_slice());
+            if stage == Tokens {
+                println!("{}", tokens);
+                continue 'main
+            }
+
+            prev.extend(tokens.into_iter());
+
+            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
+            match parsing_result {
+                Ok((parsed_ast, rest)) => {
+                    ast.extend(parsed_ast.into_iter());
+                    if rest.is_empty() {
+                        // we have parsed the full expression
+                        break
+                    } else {
+                        prev = rest;
+                    }
+                },
+                Err(message) => {
+                    println!("Error occured: {}", message);
+                    continue 'main
+                }
+            }
+            print!(".");
+            input = io::stdin().read_line().ok().expect("Failed to read line");
+        }
+
+        if stage == AST {
+            println!("{}", ast);
+            continue
+        }
+    }
+}
+```
 
 ## LLVM IR code generation
 

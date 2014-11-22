@@ -30,7 +30,9 @@ pub fn main_loop(stage: Stage) {
             break;
         }
 
+        // the constructed AST
         let mut ast = Vec::new();
+        // tokens left from the previous lines
         let mut prev = Vec::new();
         loop {
             let tokens = tokenize(input.as_slice());
@@ -46,6 +48,7 @@ pub fn main_loop(stage: Stage) {
                 Ok((parsed_ast, rest)) => {
                     ast.extend(parsed_ast.into_iter());
                     if rest.is_empty() {
+                        // we have parsed a full expression
                         break
                     } else {
                         prev = rest;
