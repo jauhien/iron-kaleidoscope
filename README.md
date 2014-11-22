@@ -920,13 +920,13 @@ That's how parsing of binary expressions looks like.
 
 ### The driver
 
-That's time to construct a working program from already defined
+It is time to construct a working program from already defined
 functions. Our simple REPL will read input line by line. It will write
 the parsed AST back to the user when it has some finished
 expression(s). Until this it will ask user to write additional lines
 to the current expression. On error it will display an error message.
 
-Additionally we will add possibility to call only the parser. Let's
+Additionally we will add possibility to call only the lexer. Let's
 start from command line options parsing. We will use
 [docopt](https://github.com/docopt/docopt.rs) library for this:
 
