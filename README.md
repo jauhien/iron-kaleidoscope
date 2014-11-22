@@ -932,7 +932,7 @@ start from command line options parsing. We will use
 
 ```rust
 docopt!(Args, "
-Usage: iron_kaleidoscope [(-l | -p | -i)]
+Usage: iron_kaleidoscope [(-l | -p )]
 
 Options:
     -l  Run only lexer and show its output.
