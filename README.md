@@ -23,6 +23,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Parsing of binary expressions](#parsing-of-binary-expressions)
   * [The driver](#the-driver)
 * [LLVM IR code generation](#llvm-ir-code-generation)
+  * [Code generation setup and Rust LLVM bindings](rust-llvm-bindings-and-code-generation-setup)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
@@ -1018,6 +1019,126 @@ pub fn main_loop(stage: Stage) {
 ```
 
 ## LLVM IR code generation
+
+Before it we have used nothing from LLVM libraries. The described
+lexer and parser have nothing LLVM specific. It is a time to start a
+real LLVM tutorial now.
+
+To represent intermediate results of code generation and to make it
+possible to easily do different transformations on the generated code,
+LLVM uses a special representation: [LLVM intermediate
+representation](http://llvm.org/docs/LangRef.html).
+
+IR is a universal representation used in every component of LLVM. It
+has three different forms: an in-memory compiler IR, an on-disk
+bitcode representation and a human-readable assembly language
+representation.
+
+We want to generate IR from the AST that we have built in the previous
+chapter. It is surprisingly simple, as we will see in a moment.
+
+### Rust LLVM bindings and code generation setup
+
+LLVM has two interfaces: C++ interface and a stable C interface. Apart
+from it LLVM has a number of bindings, usually based on the C interface.
+
+Before or during reading of this chapter of tutorial you can read an
+[appropriate section in the LLVM Programmer's
+Manual](http://llvm.org/docs/ProgrammersManual.html#the-core-llvm-class-hierarchy-reference).
+
+As you probably know, Rust compiler uses LLVM. So it should not
+surprise you, that is has LLVM bindings somewhere deeply inside its
+code. You can find them in the `src/librustc_llvm` directory of the
+Rust compiler sources. Those bindings (based on the stable C
+interface) are not full and also are unsafe.
+There are some safe wrappers on top of them, but these wrappers are
+very Rust compiler specific, so we will use the available unsafe
+bindings.
+
+To start using bindings we need to add an appropriate use in the beginning of the
+module:
+
+```rust
+use rustc::lib::llvm;
+```
+
+and link with the necessary crate (in the root module):
+
+```rust
+extern crate rustc;
+```
+
+Now we need to add code generation functions to every AST element. The
+result of these function will be `llvm::ValueRef`:
+
+```rust
+pub type IRBuildingResult = Result<llvm::ValueRef, String>;
+
+pub trait IRBuilder {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult;
+}
+```
+
+`Context` is a structure with additional context data needed for the
+code generation:
+
+```rust
+pub struct Context {
+    context: llvm::ContextRef,
+    module: llvm::ModuleRef,
+    builder: llvm::BuilderRef,
+    named_values: HashMap<String, llvm::ValueRef>
+}
+```
+
+`context` is an LLVM context used during code generation. The `module`
+contains all the generated code. It is a top level structure similar to the
+Rust crate. `builder` is a helper object that emits IR instructions,
+it keeps track of the current place to insert instructions and
+provides an interface to code generation. `named_values` will be used
+to track defined values (at the moment we have only named function parameters).
+
+Before doing any real job we need to initialize the context. Also we add a
+`dump` function to display the results of the code generation:
+
+```rust
+impl Context {
+    pub fn new(module_name : &str) -> Context {
+        unsafe {
+            let context = llvm::LLVMContextCreate();
+            let module = llvm::LLVMModuleCreateWithNameInContext(module_name.to_c_str().as_ptr(), context);
+            let builder = llvm::LLVMCreateBuilderInContext(context);
+            let named_values = HashMap::new();
+
+            Context { context: context,
+                      module: module,
+                      builder: builder,
+                      named_values: named_values }
+        }
+    }
+
+    pub fn dump(&self) {
+        unsafe {
+            llvm::LLVMDumpModule(self.module);
+        }
+    }
+}
+```
+
+In addition, we will need to do some cleaning up after code generation is
+finished and we no longer need our context:
+
+```rust
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe {
+            llvm::LLVMDisposeBuilder(self.builder);
+            llvm::LLVMDisposeModule(self.module);
+            llvm::LLVMContextDispose(self.context);
+        }
+    }
+}
+```
 
 ## JIT and optimizer support
 

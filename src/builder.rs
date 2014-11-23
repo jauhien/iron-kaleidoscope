@@ -86,12 +86,12 @@ impl Context {
             llvm::LLVMAddCFGSimplificationPass(function_passmanager);
             llvm::LLVMInitializeFunctionPassManager(function_passmanager);
 
-            Context{context: context,
-                    module: module,
-                    builder: builder,
-                    exec_engine: exec_engine,
-                    function_passmanager:function_passmanager,
-                    named_values: named_values}
+            Context { context: context,
+                      module: module,
+                      builder: builder,
+                      exec_engine: exec_engine,
+                      function_passmanager:function_passmanager,
+                      named_values: named_values }
         }
     }
 
