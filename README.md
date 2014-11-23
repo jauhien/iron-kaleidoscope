@@ -23,7 +23,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Parsing of binary expressions](#parsing-of-binary-expressions)
   * [The driver](#the-driver)
 * [LLVM IR code generation](#llvm-ir-code-generation)
-  * [Rust LLVM bindings and code generation setup](rust-llvm-bindings-and-code-generation-setup)
+  * [Rust LLVM bindings and code generation setup](#rust-llvm-bindings-and-code-generation-setup)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
