@@ -384,13 +384,18 @@ impl IRBuilder for Expression {
 impl IRBuilder for Prototype {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         unsafe {
+            // check if declaration with this name was already done
             let prev_definition = llvm::LLVMGetNamedFunction(context.module, self.name.to_c_str().as_ptr());
 
             let function =
                 if !prev_definition.is_null() {
+                    // we do not allow to redeclare functions with
+                    // other signatures
                     if llvm::LLVMCountParams(prev_definition) as uint != self.args.len() {
                         return error("redefinition of function with different number of args")
                     }
+                    // we do not allow to redefine/redeclare already
+                    // defined functions (those that have the body)
                     if llvm::LLVMCountBasicBlocks(prev_definition) != 0 {
                         return error("redefinition of function");
                     }
@@ -398,6 +403,8 @@ impl IRBuilder for Prototype {
                     prev_definition
 
                 } else {
+                    // function type if defined by number and types of
+                    // the arguments
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
                     let param_types = Vec::from_elem(self.args.len(), ty);
                     let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
@@ -407,6 +414,7 @@ impl IRBuilder for Prototype {
                                           fty)
                 };
 
+            // set correct parameters names
             let mut param = llvm::LLVMGetFirstParam(function);
             for arg in self.args.iter() {
                 llvm::LLVMSetValueName(param, arg.to_c_str().as_ptr());
@@ -420,17 +428,20 @@ impl IRBuilder for Prototype {
 
 impl IRBuilder for Function {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        // we have no global variables, so we can clear all the
+        // previously defined named values as they come from other functions
         context.named_values.clear();
 
         let (function, _) = try!(self.prototype.codegen(context));
 
         unsafe {
+            // basic block that will contain generated instructions
             let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
                                                                   function,
                                                                   "entry".to_c_str().as_ptr());
-
             llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
 
+            // set function parameters
             let mut param = llvm::LLVMGetFirstParam(function);
             for arg in self.prototype.args.iter() {
                 let arg_alloca = create_entry_block_alloca(context, function, arg.clone());
@@ -439,18 +450,23 @@ impl IRBuilder for Function {
                 param = llvm::LLVMGetNextParam(param);
             }
 
+            // emit function body
+            // if error uccured, remove the function, so user can
+            // redefine it
             let body = match self.body.codegen(context) {
                 Ok((value, _)) => value,
                 Err(message) => {
-                    llvm:: LLVMDeleteFunction(function);
+                    llvm::LLVMDeleteFunction(function);
                     return Err(message);
                 }
             };
 
+            // the last instruction should be return
             llvm::LLVMBuildRet(context.builder, body);
             llvm::LLVMRunFunctionPassManager(context.function_passmanager, function);
         }
 
+        // clear local variables
         context.named_values.clear();
         Ok((function, self.prototype.name.as_slice() == ""))
     }

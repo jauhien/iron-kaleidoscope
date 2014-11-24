@@ -24,6 +24,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [The driver](#the-driver)
 * [LLVM IR code generation](#llvm-ir-code-generation)
   * [Rust LLVM bindings and code generation setup](#rust-llvm-bindings-and-code-generation-setup)
+  * [Top level code generation](#top-level-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
@@ -1077,6 +1078,10 @@ pub type IRBuildingResult = Result<llvm::ValueRef, String>;
 pub trait IRBuilder {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult;
 }
+
+fn error(message : &str) -> IRBuildingResult {
+    Err(message.to_string())
+}
 ```
 
 `Context` is a structure with additional context data needed for the
@@ -1139,6 +1144,177 @@ impl Drop for Context {
     }
 }
 ```
+
+### Top level code generation
+
+Let's implement `IRBuilder` trait for top level data structures. For
+`ParsingResults`, AST tree and `ASTNode` it is really trivial:
+
+```rust
+impl IRBuilder for ParsingResult {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        match self {
+            &Ok((ref ast, _)) => ast.codegen(context),
+            &Err(ref message) => Err(message.clone())
+        }
+    }
+}
+
+impl IRBuilder for Vec<ASTNode> {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        let mut result = error("empty AST");
+        for node in self.iter() {
+            result = Ok(try!(node.codegen(context)));
+        }
+
+        result
+    }
+}
+
+impl IRBuilder for ASTNode {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        match self {
+            &ExternNode(ref prototype) => prototype.codegen(context),
+            &FunctionNode(ref function) => function.codegen(context)
+        }
+    }
+}
+```
+
+We just call `codegen` function for underlying elements and return its results.
+For AST tree (in our case, rather AST list) we return value of the
+last AST node.
+
+Prototypes and functions are more complicated, as we need to do some
+real work there including handling of named function parameters.
+
+Code generation for prototypes looks like this:
+
+```rust
+impl IRBuilder for Prototype {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        unsafe {
+            // check if declaration with this name was already done
+            let prev_definition = llvm::LLVMGetNamedFunction(context.module, self.name.to_c_str().as_ptr());
+
+            let function =
+                if !prev_definition.is_null() {
+                    // we do not allow to redeclare functions with
+                    // other signatures
+                    if llvm::LLVMCountParams(prev_definition) as uint != self.args.len() {
+                        return error("redefinition of function with different number of args")
+                    }
+                    // we do not allow to redefine/redeclare already
+                    // defined functions (those that have the body)
+                    if llvm::LLVMCountBasicBlocks(prev_definition) != 0 {
+                        return error("redefinition of function");
+                    }
+
+                    prev_definition
+
+                } else {
+                    // function type if defined by number and types of
+                    // the arguments
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                    let param_types = Vec::from_elem(self.args.len(), ty);
+                    let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
+
+                    llvm::LLVMAddFunction(context.module,
+                                          self.name.to_c_str().as_ptr(),
+                                          fty)
+                };
+
+            // set correct parameters names
+            let mut param = llvm::LLVMGetFirstParam(function);
+            for arg in self.args.iter() {
+                llvm::LLVMSetValueName(param, arg.to_c_str().as_ptr());
+                param = llvm::LLVMGetNextParam(param);
+            }
+
+            Ok((function, false))
+        }
+    }
+}
+```
+
+First we look if a function was already declared. If it was declared
+with the same signature but was not defined, we allow redeclaration
+(it is useful for e.g. forward function declarations). If the function
+was not declared previously, we create a new function with the type we
+need. Function type is determined by types and number of arguments. In
+our case function type effectively is defined only by number of
+arguments, as all of them have the same `f64` type. At the end we
+iterate through the parameters setting correct names for them.
+
+Function code generation looks like this:
+
+```rust
+impl IRBuilder for Function {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        // we have no global variables, so we can clear all the
+        // previously defined named values as they come from other functions
+        context.named_values.clear();
+
+        let function = try!(self.prototype.codegen(context));
+
+        unsafe {
+            // basic block that will contain generated instructions
+            let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
+                                                                  function,
+                                                                  "entry".to_c_str().as_ptr());
+            llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
+
+            // set function parameters
+            let mut param = llvm::LLVMGetFirstParam(function);
+            for arg in self.prototype.args.iter() {
+                context.named_values.insert(arg.clone(), param);
+                param = llvm::LLVMGetNextParam(param);
+            }
+
+            // emit function body
+            // if error uccured, remove the function, so user can
+            // redefine it
+            let body = match self.body.codegen(context) {
+                Ok((value, _)) => value,
+                Err(message) => {
+                    llvm::LLVMDeleteFunction(function);
+                    return Err(message);
+                }
+            };
+
+            // the last instruction should be return
+            llvm::LLVMBuildRet(context.builder, body);
+        }
+
+        // clear local variables
+        context.named_values.clear();
+        Ok(function)
+    }
+}
+```
+
+First we call `codegen` for prototype that returns [function
+reference](http://llvm.org/docs/ProgrammersManual.html#c-function).
+After it we insert a [basic
+block](http://llvm.org/docs/ProgrammersManual.html#the-basicblock-class)
+into our function. A basic block is a container for a sequence of
+instructions. It contains a linear instructions sequence without branching
+and should end with a [terminator
+instruction](http://llvm.org/docs/ProgrammersManual.html#terminatorinst).
+When the entry basic block is appended we position the builder on it,
+so all the following instructions will be generated into this basic
+block. Then we add function parameters to the `named_values` map.
+After it we call `codegen` function for a body. If it fails, we
+completely remove the function that we are working with, so user can
+try to redefine it. Then we add a return instruction at the end of the
+function, clear local variables and return the generated value.
+
+That's all with code generation for functions. We can proceed with
+expressions code generation now, as builder is setup and has a place
+where it can emit instructions. Also we have local variables added to
+the `named_values` map, so they can be used from inside function
+bodies. Also, remember, that we have closed top level expressions into
+anonymous functions, so they need no additional logic.
 
 ## JIT and optimizer support
 
