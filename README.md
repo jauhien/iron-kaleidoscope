@@ -1383,7 +1383,7 @@ impl IRBuilder for Expression {
                     }
                     let mut args_value = Vec::new();
                     for arg in args.iter() {
-                        let (arg_value, _) = try!(arg.codegen(context));
+                        let arg_value = try!(arg.codegen(context));
                         args_value.push(arg_value);
                     }
                     Ok(llvm::LLVMBuildCall(context.builder,
@@ -1479,7 +1479,7 @@ additional type conversion as mentioned.
 For call code generation we do function name lookup in the LLVM
 Module's symbol table first. Then we compare the number of arguments in
 call AST node and in the function defined in the LLVM Module. After it
-we generated a value for every argument and create the arguments
+we generate a value for every argument and create the arguments
 vector. Note, how we can pass a pointer to a vector to external code.
 
 ```rust
