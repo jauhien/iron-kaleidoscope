@@ -211,6 +211,7 @@ impl IRBuilder for Expression {
                                                           rhs_value,
                                                           "cmptmp".to_c_str().as_ptr());
                             let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                            // convert boolean to double 0.0 or 1.0
                             Ok((llvm::LLVMBuildUIToFP(context.builder,
                                                       cmp,
                                                       ty,

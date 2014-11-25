@@ -25,6 +25,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
 * [LLVM IR code generation](#llvm-ir-code-generation)
   * [Rust LLVM bindings and code generation setup](#rust-llvm-bindings-and-code-generation-setup)
   * [Top level code generation](#top-level-code-generation)
+  * [Expression code generation](#expression-code-generation)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
@@ -1310,11 +1311,202 @@ try to redefine it. Then we add a return instruction at the end of the
 function, clear local variables and return the generated value.
 
 That's all with code generation for functions. We can proceed with
-expressions code generation now, as builder is setup and has a place
+expressions code generation now, as builder is setted up and has a place
 where it can emit instructions. Also we have local variables added to
 the `named_values` map, so they can be used from inside function
 bodies. Also, remember, that we have closed top level expressions into
 anonymous functions, so they need no additional logic.
+
+### Expression code generation
+
+As everything apart from function declarations/definitions is
+expression in kaleidoscope, we will have a big match on an
+`Expression` AST node in branches of which we will generate IR for
+appropriate language constructions. Here is the full function for reference,
+comments will follow:
+
+```rust
+impl IRBuilder for Expression {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        unsafe {
+            match self {
+                &Literal(ref value) => {
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                    Ok(llvm::LLVMConstReal(ty, *value))
+                },
+                &Variable(ref name) => {
+                    match context.named_values.find(name) {
+                        Some(value) => Ok(*value),
+                        None => error("unknown variable name")
+                    }
+                },
+                &Binary(ref name, ref lhs, ref rhs) => {
+                    let lhs_value = try!(lhs.codegen(context));
+                    let rhs_value = try!(rhs.codegen(context));
+
+                    match name.as_slice() {
+                        "+" => Ok(llvm::LLVMBuildFAdd(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "addtmp".to_c_str().as_ptr())),
+                        "-" => Ok(llvm::LLVMBuildFSub(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "subtmp".to_c_str().as_ptr())),
+                        "*" => Ok(llvm::LLVMBuildFMul(context.builder,
+                                                    lhs_value,
+                                                    rhs_value,
+                                                    "multmp".to_c_str().as_ptr())),
+                        "<" => {
+                            let cmp = llvm::LLVMBuildFCmp(context.builder,
+                                                          llvm::RealOLT as c_uint,
+                                                          lhs_value,
+                                                          rhs_value,
+                                                          "cmptmp".to_c_str().as_ptr());
+                            let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                            // convert boolean to double 0.0 or 1.0
+                            Ok(llvm::LLVMBuildUIToFP(context.builder,
+                                                      cmp,
+                                                      ty,
+                                                      "booltmp".to_c_str().as_ptr()))
+                        },
+                        _ => error("invalid binary operator")
+                    }
+                },
+                &Call(ref name, ref args) => {
+                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                    if function.is_null() {
+                        return error("unknown function referenced")
+                    }
+                    if llvm::LLVMCountParams(function) as uint != args.len() {
+                        return error("incorrect number of arguments passed")
+                    }
+                    let mut args_value = Vec::new();
+                    for arg in args.iter() {
+                        let (arg_value, _) = try!(arg.codegen(context));
+                        args_value.push(arg_value);
+                    }
+                    Ok(llvm::LLVMBuildCall(context.builder,
+                                            function,
+                                            args_value.as_ptr(),
+                                            args_value.len() as c_uint,
+                                            "calltmp".to_c_str().as_ptr()))
+                }
+            }
+        }
+    }
+}
+```
+
+Let's have a look at match branches one by one.
+
+For `Literal` expression we just return a real constant with the
+appropriate value:
+
+```rust
+                &Literal(ref value) => {
+                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                    Ok(llvm::LLVMConstReal(ty, *value))
+                }
+```
+
+For variables we look in the `named_values` map and if there is such a
+variable there (a value that corresponds to the function argument),
+we return the value or emit an error otherwise:
+
+```rust
+                &Variable(ref name) => {
+                    match context.named_values.find(name) {
+                        Some(value) => Ok(*value),
+                        None => error("unknown variable name")
+                    }
+                }
+```
+
+For binary expressions we do some real instructions generation. Note,
+that LLVM uses
+[SSA](http://en.wikipedia.org/wiki/Static_single_assignment_form), so
+value, instruction and variable are the same. They are identified by a
+value reference that code generation functions return. Names that we
+give to those functions are just hints to LLVM and will be changed to
+be different for every instruction. We give them to make reading of
+generated IR easier.
+
+LLVM IR is a typed language, so when we receive a boolean result of
+comparison, we need to convert it to double (as Kaleidoscope has only
+double values).
+
+First we generate values for LHS and RHS. Then we generate an
+instruction based on the value of operator. For comparison we do
+additional type conversion as mentioned.
+
+```rust
+                &Binary(ref name, ref lhs, ref rhs) => {
+                    let lhs_value = try!(lhs.codegen(context));
+                    let rhs_value = try!(rhs.codegen(context));
+
+                    match name.as_slice() {
+                        "+" => Ok(llvm::LLVMBuildFAdd(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "addtmp".to_c_str().as_ptr())),
+                        "-" => Ok(llvm::LLVMBuildFSub(context.builder,
+                                                       lhs_value,
+                                                       rhs_value,
+                                                       "subtmp".to_c_str().as_ptr())),
+                        "*" => Ok(llvm::LLVMBuildFMul(context.builder,
+                                                    lhs_value,
+                                                    rhs_value,
+                                                    "multmp".to_c_str().as_ptr())),
+                        "<" => {
+                            let cmp = llvm::LLVMBuildFCmp(context.builder,
+                                                          llvm::RealOLT as c_uint,
+                                                          lhs_value,
+                                                          rhs_value,
+                                                          "cmptmp".to_c_str().as_ptr());
+                            let ty = llvm::LLVMDoubleTypeInContext(context.context);
+                            // convert boolean to double 0.0 or 1.0
+                            Ok(llvm::LLVMBuildUIToFP(context.builder,
+                                                      cmp,
+                                                      ty,
+                                                      "booltmp".to_c_str().as_ptr()))
+                        },
+                        _ => error("invalid binary operator")
+                    }
+                }
+```
+
+For call code generation we do function name lookup in the LLVM
+Module's symbol table first. Then we compare the number of arguments in
+call AST node and in the function defined in the LLVM Module. After it
+we generated a value for every argument and create the arguments
+vector. Note, how we can pass a pointer to a vector to external code.
+
+```rust
+                &Call(ref name, ref args) => {
+                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                    if function.is_null() {
+                        return error("unknown function referenced")
+                    }
+                    if llvm::LLVMCountParams(function) as uint != args.len() {
+                        return error("incorrect number of arguments passed")
+                    }
+                    let mut args_value = Vec::new();
+                    for arg in args.iter() {
+                        let arg_value = try!(arg.codegen(context));
+                        args_value.push(arg_value);
+                    }
+                    Ok(llvm::LLVMBuildCall(context.builder,
+                                            function,
+                                            args_value.as_ptr(),
+                                            args_value.len() as c_uint,
+                                            "calltmp".to_c_str().as_ptr()))
+                }
+```
+
+That's all for code generation. You can easily add new operators to
+Kaleidoscope with this implementation. For a list of instructions look
+in [the LLVM language reference](http://llvm.org/docs/LangRef.html).
 
 ## JIT and optimizer support
 
