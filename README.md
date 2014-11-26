@@ -26,6 +26,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Rust LLVM bindings and code generation setup](#rust-llvm-bindings-and-code-generation-setup)
   * [Top level code generation](#top-level-code-generation)
   * [Expression code generation](#expression-code-generation)
+  * [Changes in the driver](#changes-in-the-driver)
 * [JIT and optimizer support](#jit-and-optimizer-support)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
@@ -1507,6 +1508,205 @@ vector. Note, how we can pass a pointer to a vector to external code.
 That's all for code generation. You can easily add new operators to
 Kaleidoscope with this implementation. For a list of instructions look
 in [the LLVM language reference](http://llvm.org/docs/LangRef.html).
+
+### Changes in the driver
+
+As we can generate LLVM IR now, it would be interesting to have a look
+at it. To do so, we will change our driver slightly. First, we will
+add new command line option:
+
+```rust
+docopt!(Args, "
+Usage: iron_kaleidoscope [(-l | -p | -i)]
+
+Options:
+    -l  Run only lexer and show its output.
+    -p  Run only parser and show its output.
+    -i  Run only IR builder and show its output.
+")
+```
+
+Now we'll extend `Stage` enum and handle command line option in the
+`main` function:
+
+```rust
+#[deriving(PartialEq, Clone, Show)]
+pub enum Stage {
+    Tokens,
+    AST,
+    IR
+}
+```
+
+```rust
+#[cfg(not(test))]
+fn main() {
+    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+
+    let stage = if args.flag_l {
+        Tokens
+    } else if args.flag_p {
+        AST
+    } else {
+        IR
+    };
+
+    main_loop(stage);
+}
+```
+
+Then we can add this code to the driver after checking for `AST`
+stage:
+
+```rust
+        match ast.codegen(&mut context) {
+            Ok(value) => {
+                dump_value(value)
+            },
+            Err(message) => println!("Error occured: {}", message)
+        }
+```
+
+Also we can dump the whole module before exiting, so driver will look
+like this now:
+
+```rust
+pub fn main_loop(stage: Stage) {
+    let mut parser_settings = default_parser_settings();
+
+    'main: loop {
+        print!(">");
+        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
+        if input.as_slice() == ".quit\n" {
+            break;
+        }
+
+        // the constructed AST
+        let mut ast = Vec::new();
+        // tokens left from the previous lines
+        let mut prev = Vec::new();
+        loop {
+            let tokens = tokenize(input.as_slice());
+            if stage == Tokens {
+                println!("{}", tokens);
+                continue 'main
+            }
+
+            prev.extend(tokens.into_iter());
+
+            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
+            match parsing_result {
+                Ok((parsed_ast, rest)) => {
+                    ast.extend(parsed_ast.into_iter());
+                    if rest.is_empty() {
+                        // we have parsed the full expression
+                        break
+                    } else {
+                        prev = rest;
+                    }
+                },
+                Err(message) => {
+                    println!("Error occured: {}", message);
+                    continue 'main
+                }
+            }
+            print!(".");
+            input = io::stdin().read_line().ok().expect("Failed to read line");
+        }
+
+        if stage == AST {
+            println!("{}", ast);
+            continue
+        }
+
+        match ast.codegen(&mut context) {
+            Ok(value) => {
+                dump_value(value)
+            },
+            Err(message) => println!("Error occured: {}", message)
+        }
+    }
+
+    if stage == IR {
+        context.dump();
+    }
+}
+```
+
+We can experiment with LLVM IR building now:
+
+```
+>2+2
+
+define double @0() {
+entry:
+  ret double 4.000000e+00
+}
+```
+
+We didn't add any optimization, but LLVM already knows, that it can
+fold constants. Also, note how top level expressions are enclosed in
+anonymous functions.
+
+```
+>def f(a) a*a + a*a
+
+define double @f(double %a) {
+entry:
+  %multmp = fmul double %a, %a
+  %multmp1 = fmul double %a, %a
+  %addtmp = fadd double %multmp, %multmp1
+  ret double %addtmp
+}
+```
+
+But more complicated cases are not handled. We will add optimization
+in the next chapter. Here you also can see how did LLVM use our names hints.
+
+```
+>extern cos(x)
+
+declare double @cos(double)
+
+>cos(1)
+
+define double @1() {
+entry:
+  %calltmp = call double @cos(double 1.000000e+00)
+  ret double %calltmp
+}
+```
+
+LLVM can generate a call to extern function. We will see that we
+really can call standard functions this way later.
+
+```
+>.quit
+; ModuleID = 'main'
+
+define double @0() {
+entry:
+  ret double 4.000000e+00
+}
+
+define double @f(double %a) {
+entry:
+  %multmp = fmul double %a, %a
+  %multmp1 = fmul double %a, %a
+  %addtmp = fadd double %multmp, %multmp1
+  ret double %addtmp
+}
+
+declare double @cos(double)
+
+define double @1() {
+entry:
+  %calltmp = call double @cos(double 1.000000e+00)
+  ret double %calltmp
+}
+```
+
+On exit our REPL dumps all the produced LLVM IR.
 
 ## JIT and optimizer support
 
