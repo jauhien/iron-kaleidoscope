@@ -28,6 +28,7 @@ Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewher
   * [Expression code generation](#expression-code-generation)
   * [Changes in the driver](#changes-in-the-driver)
 * [JIT and optimizer support](#jit-and-optimizer-support)
+  * [Missing LLVM bindings](#missing-llvm-bindings)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
@@ -1709,6 +1710,310 @@ entry:
 On exit our REPL dumps all the produced LLVM IR.
 
 ## JIT and optimizer support
+
+It is time to add JIT compilation and optimization to our REPL and see
+real evaluation of some kaleidoscope expressions.
+
+### Missing LLVM bindings
+
+So far we were lucky as there were the necessary bindings in the Rust
+itself. Now we are starting to deal with things that were not needed
+for Rust authors: JIT compilation, so we will need to add some
+bindings ourselves. A good starting point is reading of [The Rust
+Foreign Function Interface
+Guide](http://doc.rust-lang.org/guide-ffi.html) to understand how
+FFI in Rust works.
+
+Now, when we understand it, we can look at Rust bindings (found in
+`src/librustc_llvm` in the Rust sources) and find out how they work.
+We see bindings in the `lib.rs` file and one auto generated file (`llvmdeps.rs`) for
+correct linking with `LLVM`. We will do the same (and even use near the
+same script for generation of the file necessary for linking).
+
+Before it we need to know how to call a custom script during
+compilation of cargo based project. Here [Build Script
+Support](http://doc.crates.io/build-script.html) helps us.
+
+Additionally we will need initialization code for LLVM JIT (it uses
+macros defined in C headers, so it should be written in C):
+
+```c
+#include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/Target.h>
+
+void llvm_initialize_native_target() {
+	LLVMLinkInJIT();
+	LLVMInitializeNativeTarget();
+}
+```
+
+We will compile it to the static library and link with our Rust code.
+To compile it we will use a plain Makefile:
+
+```makefile
+CC ?= gcc
+AR ?= ar
+
+LLVM_CFLAGS := $(shell llvm-config --cflags)
+CFLAGS += $(LLVM_CFLAGS)
+
+all: libllvm_initialization.a
+
+llvm_initialization.o: src/missing_llvm_bindings/llvm_initialization.c
+	@$(CC) -c $(CFLAGS) $< -o $(OUT_DIR)/$@
+
+libllvm_initialization.a: llvm_initialization.o
+	@cd $(OUT_DIR) && $(AR) crus $@ $<
+```
+
+To properly link with LLVM we want to generate something similar to
+
+```rust
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
+#[link(name = "llvm_initialization")]
+#[link(name = "LLVMJIT")]
+#[link(name = "LLVMExecutionEngine")]
+#[link(name = "LLVMCodeGen")]
+#[link(name = "LLVMScalarOpts")]
+#[link(name = "LLVMInstCombine")]
+#[link(name = "LLVMTransformUtils")]
+#[link(name = "LLVMipa")]
+#[link(name = "LLVMAnalysis")]
+#[link(name = "LLVMTarget")]
+#[link(name = "LLVMMC")]
+#[link(name = "LLVMCore")]
+#[link(name = "LLVMSupport")]
+#[link(name = "z")]
+#[link(name = "pthread")]
+#[link(name = "ffi")]
+#[link(name = "curses")]
+#[link(name = "dl")]
+#[link(name = "m")]
+#[link(name = "stdc++")]
+extern {}
+```
+
+Here we have LLVM and system libraries mentioned plus one library
+(`llvm_initialization`) created by ourselves.
+
+To generate it we will use as a prototype `src/etc/mklldeps.py` from
+the Rust project. Here it is its modified version:
+
+```python
+# Copyright 2014 Jauhien Piatlicki <jauhien@gentoo.org>
+#
+# Copyright 2013-2014 The Rust Project Developers. See the COPYRIGHT
+# file at the top-level directory of this distribution and at
+# http://rust-lang.org/COPYRIGHT.
+#
+# Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+# http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+# <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+# option. This file may not be copied, modified, or distributed
+# except according to those terms.
+
+import os
+import sys
+import subprocess
+import itertools
+from os import path
+
+f = open(sys.argv[1], 'wb')
+
+out_dir = sys.argv[2]
+
+components = sys.argv[3].split(' ')
+components = [i for i in components if i]  # ignore extra whitespaces
+
+f.write("""// Copyright 2014 Jauhien Piatlicki <jauhien@gentoo.org>
+//
+// Copyright 2013-2014 The Rust Project Developers. See the COPYRIGHT
+// file at the top-level directory of this distribution and at
+// http://rust-lang.org/COPYRIGHT.
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+
+// WARNING: THIS IS A GENERATED FILE, DO NOT MODIFY
+//          take a look at src/etc/mklldeps.py if you're interested
+""")
+
+def run(args):
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+
+    if err:
+        print("failed to run llconfig: args = `{}`".format(args))
+        print(err)
+        sys.exit(1)
+    return out
+
+for llconfig in sys.argv[4:]:
+    f.write("\n")
+
+    out = run([llconfig, '--host-target'])
+    arch, os = out.split('-', 1)
+    arch = 'x86' if arch == 'i686' or arch == 'i386' else arch
+
+    native_target = "INVALID";
+
+    if 'x86' in arch:
+        native_target = 'X86'
+    elif 'arm' in arch:
+        native_target = 'ARM'
+    elif 'mips' in arch:
+        native_target = 'MIPS'
+
+    if 'darwin' in os:
+        os = 'macos'
+    elif 'linux' in os:
+        os = 'linux'
+    elif 'freebsd' in os:
+        os = 'freebsd'
+    elif 'dragonfly' in os:
+        os = 'dragonfly'
+    elif 'android' in os:
+        os = 'android'
+    elif 'win' in os or 'mingw' in os:
+        os = 'windows'
+    cfg = [
+        "target_arch = \"" + arch + "\"",
+        "target_os = \"" + os + "\"",
+    ]
+
+    f.write("#[cfg(all(" + ', '.join(cfg) + "))]\n")
+
+    version = run([llconfig, '--version']).strip()
+
+    # llvm_initialization static library
+    f.write("#[link(name = \"llvm_initialization\")]\n")
+
+    # LLVM libs
+    if version < '3.5':
+      args = [llconfig, '--libs']
+    else:
+      args = [llconfig, '--libs', '--system-libs']
+    args.extend(components)
+    out = run(args)
+    for lib in out.strip().replace("\n", ' ').split(' '):
+        lib = lib.strip()[2:] # chop of the leading '-l'
+        f.write("#[link(name = \"" + lib + "\"")
+        f.write(")]\n")
+
+    # llvm-config before 3.5 didn't have a system-libs flag
+    if version < '3.5':
+      if os == 'win32':
+        f.write("#[link(name = \"imagehlp\")]")
+
+    # LLVM ldflags
+    out = run([llconfig, '--ldflags'])
+    ldflags = ""
+    for lib in out.strip().split(' '):
+        if lib[:2] == "-l":
+            f.write("#[link(name = \"" + lib[2:] + "\")]\n")
+        else:
+            ldflags += lib
+
+    # C++ runtime library
+    out = run([llconfig, '--cxxflags'])
+    if 'stdlib=libc++' in out:
+        f.write("#[link(name = \"c++\")]\n")
+    else:
+        f.write("#[link(name = \"stdc++\")]\n")
+
+    # Attach everything to an extern block
+    f.write("extern {}\n")
+```
+
+It is quite straightforward: it determines a list of LLVM libraries
+using `llconfig` tool and makes our auto generated file force linkage
+with them. Also it adds our `llvm_initialization` library.
+
+Build script itself looks like this:
+
+```rust
+use std::io::Command;
+use std::os;
+
+fn main() {
+    let out_dir = os::getenv("OUT_DIR").unwrap();
+
+    Command::new("python2").arg("src/etc/mklldeps.py")
+        .arg("src/missing_llvm_bindings/llvmdeps.rs")
+        .arg(format!("{}", out_dir))
+        .arg("jit")
+        .arg("llvm-config")
+        .status()
+        .unwrap();
+
+    Command::new("make")
+        .arg(format!("OUT_DIR={}", out_dir))
+        .status()
+        .unwrap();
+
+    println!("cargo:rustc-flags=-L {} ", out_dir);
+}
+```
+
+It generates file with information about what libraries link to,
+generates a static initialization library and instructs cargo to add
+the directory with this library to the link path.
+
+To call this build script we need to add `build = "build.rs"` line to
+`Cargo.toml` file.
+
+LLVM bindings themselves will be also quite straightforward:
+
+```rust
+#![allow(non_camel_case_types)]
+
+use libc::{c_char, c_uint};
+
+use rustc::lib::llvm::{ExecutionEngineRef, ModuleRef, TargetDataRef, TypeRef, ValueRef};
+
+pub enum GenericValue_opaque {}
+pub type GenericValueRef = *mut GenericValue_opaque;
+
+extern {
+    pub fn llvm_initialize_native_target();
+
+    pub fn LLVMCreateExecutionEngineForModule(OutEE: *mut ExecutionEngineRef,
+                                              M: ModuleRef,
+                                              OutError: *mut *const c_char);
+
+    pub fn LLVMDisposeExecutionEngine(EE: ExecutionEngineRef);
+
+    pub fn LLVMGetExecutionEngineTargetData(EE: ExecutionEngineRef)
+                                            -> TargetDataRef;
+
+    pub fn LLVMCopyStringRepOfTargetData(TD: TargetDataRef)
+                                         -> *const c_char;
+
+    pub fn LLVMDisposeMessage(Message: *const c_char);
+
+    pub fn LLVMRunFunction(EE: ExecutionEngineRef,
+                           F: ValueRef,
+                           NumArgs: c_uint,
+                           Args: *const GenericValueRef)
+                           -> GenericValueRef;
+
+    pub fn LLVMGenericValueToFloat(TyRef: TypeRef,
+                                   GenVal: GenericValueRef)
+                                   -> f64;
+}
+
+mod llvmdeps;
+```
+
+`mod llvmdeps` is our auto generated file that forces the necessary
+linking. Functions described in these bindings we will need for JIT
+compilation and optimization. Their description can be found in the C
+LLVM interface.
+
+Now, when we have all necessary bindings, we can proceed with JIT compilation.
 
 ## Extending Kaleidoscope: control flow
 
