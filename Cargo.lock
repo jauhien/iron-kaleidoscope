@@ -2,19 +2,45 @@
 name = "iron-kaleidoscope"
 version = "0.0.1"
 dependencies = [
- "docopt_macros 0.6.11 (git+git://github.com/docopt/docopt.rs)",
+ "docopt 0.6.36 (registry+https://github.com/rust-lang/crates.io-index)",
+ "docopt_macros 0.6.36 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex_macros 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "docopt"
-version = "0.6.11"
-source = "git+git://github.com/docopt/docopt.rs#fe39168e45eb8993e6f6eb57cded249f5de000df"
+version = "0.6.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "regex 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.11"
-source = "git+git://github.com/docopt/docopt.rs#fe39168e45eb8993e6f6eb57cded249f5de000df"
+version = "0.6.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "docopt 0.6.11 (git+git://github.com/docopt/docopt.rs)",
+ "docopt 0.6.36 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "regex"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "regex_macros"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "regex 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustc-serialize"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 

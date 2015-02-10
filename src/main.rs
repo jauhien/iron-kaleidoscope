@@ -1,8 +1,8 @@
-#![feature(phase)]
+#![feature(plugin)]
 
-extern crate serialize;
-#[phase(plugin)] extern crate docopt_macros;
+extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
+#[plugin] #[no_link] extern crate docopt_macros;
 
 extern crate "iron-kaleidoscope" as iron_kaleidoscope;
 
@@ -16,7 +16,7 @@ Options:
     -l  Run only lexer and show its output.
     -p  Run only parser and show its output.
     -i  Run only IR builder and show its output.
-")
+");
 
 #[cfg(not(test))]
 fn main() {

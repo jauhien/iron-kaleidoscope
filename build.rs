@@ -1,4 +1,4 @@
-use std::io::Command;
+use std::old_io::Command;
 use std::os;
 
 fn main() {

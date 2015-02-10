@@ -18,7 +18,7 @@ pub use self::Token::{
     Operator
 };
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
     Extern,
@@ -52,8 +52,8 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
     for cap in token_re.captures_iter(preprocessed.as_slice()) {
 
-        let token = if !cap.name("ident").is_empty() {
-            match cap.name("ident") {
+        let token = if cap.name("ident").is_some() {
+            match cap.name("ident").unwrap() {
                 "def" => Def,
                 "extern" => Extern,
                 "if" => If,
@@ -66,21 +66,21 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "var" => Var,
                 ident => Ident(ident.to_string())
             }
-        } else if !cap.name("number").is_empty() {
-            match from_str::<f64>(cap.name("number")) {
-                Some(number) => Number(number),
-                None => panic!("Lexer failed trying to parse number")
+        } else if cap.name("number").is_some() {
+            match cap.name("number").unwrap().parse() {
+                Ok(number) => Number(number),
+                Err(_) => panic!("Lexer failed trying to parse number")
             }
-        } else if !cap.name("delimiter").is_empty() {
+        } else if cap.name("delimiter").is_some() {
             Delimiter
-        } else if !cap.name("oppar").is_empty() {
+        } else if cap.name("oppar").is_some() {
             OpeningParenthesis
-        } else if !cap.name("clpar").is_empty() {
+        } else if cap.name("clpar").is_some() {
             ClosingParenthesis
-        } else if !cap.name("comma").is_empty() {
+        } else if cap.name("comma").is_some() {
             Comma
         } else {
-            Operator(cap.name("operator").to_string())
+            Operator(cap.name("operator").unwrap().to_string())
         };
 
         result.push(token)

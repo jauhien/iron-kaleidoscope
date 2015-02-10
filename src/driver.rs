@@ -1,4 +1,4 @@
-use std::io;
+use std::old_io::stdio;
 
 use builder::*;
 use lexer::*;
@@ -11,7 +11,7 @@ pub use self::Stage::{
     Exec
 };
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
     Tokens,
     AST,
@@ -25,7 +25,7 @@ pub fn main_loop(stage: Stage) {
 
     'main: loop {
         print!(">");
-        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
+        let mut input = stdio::stdin().read_line().ok().expect("Failed to read line");
         if input.as_slice() == ".quit\n" {
             break;
         }
@@ -37,7 +37,7 @@ pub fn main_loop(stage: Stage) {
         loop {
             let tokens = tokenize(input.as_slice());
             if stage == Tokens {
-                println!("{}", tokens);
+                println!("{:?}", tokens);
                 continue 'main
             }
 
@@ -60,11 +60,11 @@ pub fn main_loop(stage: Stage) {
                 }
             }
             print!(".");
-            input = io::stdin().read_line().ok().expect("Failed to read line");
+            input = stdio::stdin().read_line().ok().expect("Failed to read line");
         }
 
         if stage == AST {
-            println!("{}", ast);
+            println!("{:?}", ast);
             continue
         }
 

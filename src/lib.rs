@@ -1,11 +1,12 @@
-#![feature(globs)]
+#![feature(box_syntax)]
 #![feature(link_args)]
-#![feature(macro_rules)]
-#![feature(phase)]
+
+#![feature(plugin)]
+#[plugin] #[no_link]
+extern crate regex_macros;
 
 extern crate libc;
 extern crate regex;
-#[phase(plugin)] extern crate regex_macros;
 extern crate rustc;
 
 pub mod builder;

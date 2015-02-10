@@ -34,7 +34,7 @@ pub struct ParserSettings {
     operator_precedence: HashMap<String, i32>
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Expression {
     LiteralExpr(f64),
     VariableExpr(String),
@@ -46,27 +46,27 @@ pub enum Expression {
     VarExpr{vars: Vec<(String, Expression)>, body_expr: Box<Expression>}
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum FunctionType {
     Normal,
     UnaryOp(String),
     BinaryOp(String, i32)
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>,
     pub ftype: FunctionType
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Function {
     pub prototype: Prototype,
     pub body: Expression
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ASTNode {
     ExternNode(Prototype),
     FunctionNode(Function)
@@ -149,7 +149,7 @@ macro_rules! parse_try(
             Bad(message) => return Bad(message)
         }
     )
-)
+);
 
 macro_rules! expect_token (
     ([ $($token:pat, $value:expr, $result:stmt);+ ] <= $tokens:ident, $parsed_tokens:ident, $error:expr) => (
@@ -180,7 +180,7 @@ macro_rules! expect_token (
             _ => {$not_matched}
         }
     )
-)
+);
 
 fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
     // eat Def token
@@ -225,7 +225,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
                 let op = expect_token!([
                         Operator(op), Operator(op.clone()), op
                     ] <= tokens, parsed_tokens, "expected unary operator");
-                ("unary".to_string() + op, UnaryOp(op))
+                ("unary".to_string() + &op, UnaryOp(op))
             };
             Binary, Binary, {
                 let op = expect_token!([
@@ -240,7 +240,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
                     return error("invalid precedecnce: must be 1..100");
                 }
 
-                ("binary".to_string() + op, BinaryOp(op, precedence))
+                ("binary".to_string() + &op, BinaryOp(op, precedence))
             }
         ] <= tokens, parsed_tokens, "expected function name in prototype");
 

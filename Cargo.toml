@@ -5,5 +5,9 @@ version = "0.0.1"
 authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
 build = "build.rs"
 
-[dependencies.docopt_macros]
-git = "git://github.com/docopt/docopt.rs"
+[dependencies]
+docopt = "*"
+docopt_macros = "*"
+regex = "*"
+regex_macros = "*"
+rustc-serialize = "*"

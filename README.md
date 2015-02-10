@@ -4,7 +4,7 @@ I have just started working on the text, for the full tutorial have a look at th
 The code for tutorial is fully implemented (it means, it has all the features described in the original
 tutorial and corresponds to the state of code for the [Chapter 7](http://llvm.org/docs/tutorial/LangImpl7.html)).
 
-Code was tested on amd64, on x86 I have a trouble with it: it segfaults somewhere in the middle of ExecutionEngine initialization.
+Tutorial is outdated a little bit, I'm working on updating it to the latest Rust. Also at the moment there is a problem with execution engine (llvm_initialize_native_target() makes it fail). I updated code, so it can be compiled by the latest Rust, so it is still quite usable.
 
 ## Table of Contents
 

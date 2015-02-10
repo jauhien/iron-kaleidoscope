@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ffi::CString;
+use std::iter;
 use libc::{c_char, c_uint};
 
 use rustc::lib::llvm;
@@ -57,10 +59,12 @@ pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
 impl Context {
     pub fn new(module_name : &str) -> Context {
         unsafe {
-            llvm_initialize_native_target();
+            //llvm_initialize_native_target();
 
             let context = llvm::LLVMContextCreate();
-            let module = llvm::LLVMModuleCreateWithNameInContext(module_name.to_c_str().as_ptr(), context);
+
+            let c_module_name = CString::from_slice(module_name.as_bytes());
+            let module = llvm::LLVMModuleCreateWithNameInContext(c_module_name.as_ptr(), context);
             let builder = llvm::LLVMCreateBuilderInContext(context);
             let named_values = HashMap::new();
 
@@ -123,7 +127,9 @@ fn create_entry_block_alloca(context: &mut Context, function: llvm::ValueRef, va
         let builder = llvm::LLVMCreateBuilderInContext(context.context);
         let bb = llvm::LLVMGetEntryBasicBlock(function);
         llvm::LLVMPositionBuilder(builder, bb, llvm::LLVMGetFirstInstruction(bb));
-        let result = llvm::LLVMBuildAlloca(builder, ty, var_name.to_c_str().as_ptr());
+
+        let c_var_name = CString::from_slice(var_name.as_bytes());
+        let result = llvm::LLVMBuildAlloca(builder, ty, c_var_name.as_ptr());
         llvm::LLVMDisposeBuilder(builder);
 
         result
@@ -141,9 +147,10 @@ impl IRBuilder for Expression {
                 &VariableExpr(ref name) => {
                     match context.named_values.get(name) {
                         Some(value) => {
+                            let c_name = CString::from_slice(name.as_bytes());
                             let var = llvm::LLVMBuildLoad(context.builder,
                                                           *value,
-                                                          name.to_c_str().as_ptr());
+                                                          c_name.as_ptr());
                             Ok((var, false))
                         },
                         None => error("unknown variable name")
@@ -153,18 +160,20 @@ impl IRBuilder for Expression {
                     let (operand, _) = try!(operand.codegen(context));
 
                     let name = "unary".to_string() + operator.as_slice();
-                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                    let c_name = CString::from_slice(name.as_bytes());
+                    let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
                     if function.is_null() {
                         return error("unary operator not found")
                     }
 
                     let args_value = vec![operand];
 
+                    let c_unop = CString::from_slice("unop".as_bytes());
                     Ok((llvm::LLVMBuildCall(context.builder,
                                             function,
                                             args_value.as_ptr(),
                                             args_value.len() as c_uint,
-                                            "unop".to_c_str().as_ptr()),
+                                            c_unop.as_ptr()),
                         false))
                 },
                 &BinaryExpr(ref name, ref lhs, ref rhs) => {
@@ -188,56 +197,65 @@ impl IRBuilder for Expression {
                     let (lhs_value, _) = try!(lhs.codegen(context));
                     let (rhs_value, _) = try!(rhs.codegen(context));
 
+                    let c_addtmp = CString::from_slice("addtmp".as_bytes());
+                    let c_subtmp = CString::from_slice("subtmp".as_bytes());
+                    let c_multmp = CString::from_slice("multmp".as_bytes());
+                    let c_cmptmp = CString::from_slice("cmptmp".as_bytes());
+                    let c_booltmp = CString::from_slice("booltmp".as_bytes());
+
                     match name.as_slice() {
                         "+" => Ok((llvm::LLVMBuildFAdd(context.builder,
                                                        lhs_value,
                                                        rhs_value,
-                                                       "addtmp".to_c_str().as_ptr()),
+                                                       c_addtmp.as_ptr()),
                                    false)),
                         "-" => Ok((llvm::LLVMBuildFSub(context.builder,
                                                        lhs_value,
                                                        rhs_value,
-                                                       "subtmp".to_c_str().as_ptr()),
+                                                       c_subtmp.as_ptr()),
                                    false)),
                         "*" => Ok((llvm::LLVMBuildFMul(context.builder,
                                                     lhs_value,
                                                     rhs_value,
-                                                    "multmp".to_c_str().as_ptr()),
+                                                    c_multmp.as_ptr()),
                                 false)),
                         "<" => {
                             let cmp = llvm::LLVMBuildFCmp(context.builder,
                                                           llvm::RealOLT as c_uint,
                                                           lhs_value,
                                                           rhs_value,
-                                                          "cmptmp".to_c_str().as_ptr());
+                                                          c_cmptmp.as_ptr());
                             let ty = llvm::LLVMDoubleTypeInContext(context.context);
                             // convert boolean to double 0.0 or 1.0
                             Ok((llvm::LLVMBuildUIToFP(context.builder,
                                                       cmp,
                                                       ty,
-                                                      "booltmp".to_c_str().as_ptr()),
+                                                      c_booltmp.as_ptr()),
                                 false))
                         },
                         op => {
                             let name = "binary".to_string() + op;
-                            let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                            let c_name = CString::from_slice(name.as_bytes());
+                            let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
                             if function.is_null() {
                                 return error("binary operator not found")
                             }
 
                             let args_value = vec![lhs_value, rhs_value];
 
+                            let c_binop = CString::from_slice("binop".as_bytes());
                             Ok((llvm::LLVMBuildCall(context.builder,
                                                     function,
                                                     args_value.as_ptr(),
                                                     args_value.len() as c_uint,
-                                                    "binop".to_c_str().as_ptr()),
+                                                    c_binop.as_ptr()),
                                 false))
                         }
                     }
                 },
                 &CallExpr(ref name, ref args) => {
-                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
+                    let c_name = CString::from_slice(name.as_bytes());
+                    let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
                     if function.is_null() {
                         return error("unknown function referenced")
                     }
@@ -249,11 +267,13 @@ impl IRBuilder for Expression {
                         let (arg_value, _) = try!(arg.codegen(context));
                         args_value.push(arg_value);
                     }
+
+                    let c_calltmp = CString::from_slice("calltmp".as_bytes());
                     Ok((llvm::LLVMBuildCall(context.builder,
                                             function,
                                             args_value.as_ptr(),
                                             args_value.len() as c_uint,
-                                            "calltmp".to_c_str().as_ptr()),
+                                            c_calltmp.as_ptr()),
                         false))
                 },
                 &ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
@@ -263,17 +283,23 @@ impl IRBuilder for Expression {
 
                     let zero = llvm::LLVMConstReal(ty, 0.0);
 
+                    let c_ifcond = CString::from_slice("ifcond".as_bytes());
                     let ifcond = llvm::LLVMBuildFCmp(context.builder,
                                                      llvm::RealONE as c_uint,
                                                      cond_value,
                                                      zero,
-                                                     "ifcond".to_c_str().as_ptr());
+                                                     c_ifcond.as_ptr());
 
                     let block = llvm::LLVMGetInsertBlock(context.builder);
+
                     let function = llvm::LLVMGetBasicBlockParent(block);
-                    let then_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "then".to_c_str().as_ptr());
-                    let else_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "else".to_c_str().as_ptr());
-                    let merge_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "ifcont".to_c_str().as_ptr());
+
+                    let c_then = CString::from_slice("then".as_bytes());
+                    let c_else = CString::from_slice("else".as_bytes());
+                    let c_ifcont = CString::from_slice("ifcont".as_bytes());
+                    let then_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_then.as_ptr());
+                    let else_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_else.as_ptr());
+                    let merge_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_ifcont.as_ptr());
 
                     llvm::LLVMBuildCondBr(context.builder, ifcond, then_block, else_block);
 
@@ -288,8 +314,9 @@ impl IRBuilder for Expression {
                     llvm:: LLVMBuildBr(context.builder, merge_block);
                     let else_end_block = llvm::LLVMGetInsertBlock(context.builder);
 
-                     llvm::LLVMPositionBuilderAtEnd(context.builder, merge_block);
-                    let phi = llvm::LLVMBuildPhi(context.builder, ty, "ifphi".to_c_str().as_ptr());
+                    llvm::LLVMPositionBuilderAtEnd(context.builder, merge_block);
+                    let c_ifphi = CString::from_slice("ifphi".as_bytes());
+                    let phi = llvm::LLVMBuildPhi(context.builder, ty, c_ifphi.as_ptr());
                     llvm::LLVMAddIncoming(phi, &then_value, &then_end_block, 1);
                     llvm::LLVMAddIncoming(phi, &else_value, &else_end_block, 1);
 
@@ -306,7 +333,8 @@ impl IRBuilder for Expression {
                     let old_value = context.named_values.remove(var_name);
                     context.named_values.insert(var_name.clone(), variable);
 
-                    let preloop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "preloop".to_c_str().as_ptr());
+                    let c_preloop = CString::from_slice("preloop".as_bytes());
+                    let preloop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_preloop.as_ptr());
                     llvm::LLVMBuildBr(context.builder, preloop_block);
                     llvm::LLVMPositionBuilderAtEnd(context.builder, preloop_block);
 
@@ -314,14 +342,18 @@ impl IRBuilder for Expression {
 
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
                     let zero = llvm::LLVMConstReal(ty, 0.0);
+
+                    let c_loopcond = CString::from_slice("loopcond".as_bytes());
                     let end_cond = llvm::LLVMBuildFCmp(context.builder,
                                                        llvm::RealONE as c_uint,
                                                        end_value,
                                                        zero,
-                                                       "loopcond".to_c_str().as_ptr());
+                                                       c_loopcond.as_ptr());
 
-                    let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "afterloop".to_c_str().as_ptr());
-                    let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, "loop".to_c_str().as_ptr());
+                    let c_afterloop = CString::from_slice("afterloop".as_bytes());
+                    let c_loop = CString::from_slice("loop".as_bytes());
+                    let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_afterloop.as_ptr());
+                    let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_loop.as_ptr());
 
                     llvm::LLVMBuildCondBr(context.builder, end_cond, loop_block, after_block);
                     llvm::LLVMPositionBuilderAtEnd(context.builder, loop_block);
@@ -329,13 +361,15 @@ impl IRBuilder for Expression {
                     try!(body_expr.codegen(context));
 
                     let (step_value, _) = try!(step_expr.codegen(context));
+                    let c_var_name = CString::from_slice(var_name.as_bytes());
+                    let c_nextvar = CString::from_slice("nextvar".as_bytes());
                     let cur_value = llvm::LLVMBuildLoad(context.builder,
                                                         variable,
-                                                        var_name.to_c_str().as_ptr());
+                                                        c_var_name.as_ptr());
                     let next_value = llvm::LLVMBuildFAdd(context.builder,
                                                          cur_value,
                                                          step_value,
-                                                         "nextvar".to_c_str().as_ptr());
+                                                         c_nextvar.as_ptr());
                     llvm::LLVMBuildStore(context.builder, next_value, variable);
 
                     llvm::LLVMBuildBr(context.builder, preloop_block);
@@ -386,7 +420,8 @@ impl IRBuilder for Prototype {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         unsafe {
             // check if declaration with this name was already done
-            let prev_definition = llvm::LLVMGetNamedFunction(context.module, self.name.to_c_str().as_ptr());
+            let c_name = CString::from_slice(self.name.as_bytes());
+            let prev_definition = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
 
             let function =
                 if !prev_definition.is_null() {
@@ -407,18 +442,19 @@ impl IRBuilder for Prototype {
                     // function type if defined by number and types of
                     // the arguments
                     let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let param_types = Vec::from_elem(self.args.len(), ty);
+                    let param_types = iter::repeat(ty).take(self.args.len()).collect::<Vec<_>>();
                     let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
 
                     llvm::LLVMAddFunction(context.module,
-                                          self.name.to_c_str().as_ptr(),
+                                          c_name.as_ptr(),
                                           fty)
                 };
 
             // set correct parameters names
             let mut param = llvm::LLVMGetFirstParam(function);
             for arg in self.args.iter() {
-                llvm::LLVMSetValueName(param, arg.to_c_str().as_ptr());
+                let c_arg = CString::from_slice(arg.as_bytes());
+                llvm::LLVMSetValueName(param, c_arg.as_ptr());
                 param = llvm::LLVMGetNextParam(param);
             }
 
@@ -437,9 +473,10 @@ impl IRBuilder for Function {
 
         unsafe {
             // basic block that will contain generated instructions
+            let c_entry = CString::from_slice("entry".as_bytes());
             let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
                                                                   function,
-                                                                  "entry".to_c_str().as_ptr());
+                                                                  c_entry.as_ptr());
             llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
 
             // set function parameters
