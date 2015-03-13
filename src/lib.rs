@@ -1,9 +1,7 @@
 #![feature(box_syntax)]
 #![feature(link_args)]
-
 #![feature(plugin)]
-#[plugin] #[no_link]
-extern crate regex_macros;
+#![plugin(regex_macros)]
 
 extern crate libc;
 extern crate regex;
