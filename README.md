@@ -1,3 +1,6 @@
+# The stuff here is outdated and doesn't compile with the latest Rust
+# It is to be updated and finished in the nearest future
+
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
 I have just started working on the text, for the full tutorial have a look at the first link.
