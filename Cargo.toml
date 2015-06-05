@@ -1,9 +1,8 @@
 [package]
 
-name = "iron-kaleidoscope"
+name = "iron_kaleidoscope"
 version = "0.0.1"
 authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
-build = "build.rs"
 
 [dependencies]
 docopt = "*"

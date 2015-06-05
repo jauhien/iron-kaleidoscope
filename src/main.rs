@@ -1,10 +1,10 @@
 #![feature(plugin)]
 #![plugin(docopt_macros)]
 
-extern crate "rustc-serialize" as rustc_serialize;
+extern crate rustc_serialize;
 extern crate docopt;
 
-extern crate "iron-kaleidoscope" as iron_kaleidoscope;
+extern crate iron_kaleidoscope;
 
 #[cfg(not(test))]
 use iron_kaleidoscope::driver::{main_loop, Tokens, AST, IR, Exec};
@@ -29,8 +29,13 @@ fn main() {
     } else if args.flag_i {
         IR
     } else {
-        Exec
+        AST
+        //Exec
     };
 
-    main_loop(stage);
+    if stage == IR || stage == Exec {
+        panic!("Not implemented");
+    } else {
+        main_loop(stage);
+    }
 }

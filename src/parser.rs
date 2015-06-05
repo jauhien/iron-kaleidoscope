@@ -355,7 +355,7 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
 
     expect_token!(
         [Operator(op), Operator(op.clone()), {
-            if op.as_slice() != "=" {
+            if op.as_str() != "=" {
                 return error("expected '=' after for")
             }
         }] <= tokens,
@@ -395,7 +395,7 @@ fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
 
         let init_expr = expect_token!(
             [Operator(op), Operator(op.clone()), {
-                if op.as_slice() != "=" {
+                if op.as_str() != "=" {
                     return error("expected '=' in variable initialization")
                 }
                 parse_try!(parse_expr, tokens, settings, parsed_tokens)

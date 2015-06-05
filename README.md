@@ -1,3 +1,5 @@
+# UPDATE: Make lexer and parser compile and work with the latest nightly Rust. Other stuff is disabled.
+
 # The stuff here is outdated and doesn't compile with the latest Rust
 # It is to be updated and finished in the nearest future
 

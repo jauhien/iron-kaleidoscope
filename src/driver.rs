@@ -1,6 +1,6 @@
-use std::old_io::stdio;
+use std::io;
 
-use builder::*;
+//use builder::*;
 use lexer::*;
 use parser::*;
 
@@ -21,12 +21,13 @@ pub enum Stage {
 
 pub fn main_loop(stage: Stage) {
     let mut parser_settings = default_parser_settings();
-    let mut context = Context::new("main");
+    //let mut context = Context::new("main");
 
     'main: loop {
-        print!(">");
-        let mut input = stdio::stdin().read_line().ok().expect("Failed to read line");
-        if input.as_slice() == ".quit\n" {
+        println!(">");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).ok().expect("Failed to read line");
+        if input.as_str() == ".quit\n" {
             break;
         }
 
@@ -35,7 +36,7 @@ pub fn main_loop(stage: Stage) {
         // tokens left from the previous lines
         let mut prev = Vec::new();
         loop {
-            let tokens = tokenize(input.as_slice());
+            let tokens = tokenize(input.as_str());
             if stage == Tokens {
                 println!("{:?}", tokens);
                 continue 'main
@@ -59,8 +60,9 @@ pub fn main_loop(stage: Stage) {
                     continue 'main
                 }
             }
-            print!(".");
-            input = stdio::stdin().read_line().ok().expect("Failed to read line");
+            println!(".");
+            input.clear();
+            io::stdin().read_line(&mut input).ok().expect("Failed to read line");
         }
 
         if stage == AST {
@@ -68,17 +70,17 @@ pub fn main_loop(stage: Stage) {
             continue
         }
 
-        match ast.codegen(&mut context) {
+        /*match ast.codegen(&mut context) {
             Ok((value, runnable)) => if runnable && stage == Exec {
                 println!("=> {}", run(value, &context))
             } else {
                 dump_value(value)
             },
             Err(message) => println!("Error occured: {}", message)
-        }
+        }*/
     }
 
-    if stage == IR || stage == Exec {
+    /*if stage == IR || stage == Exec {
         context.dump();
-    }
+    }*/
 }

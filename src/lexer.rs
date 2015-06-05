@@ -50,7 +50,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     // regex for token, just union of straightforward regexes for different token types
     // operators are parsed the same way as identifier and separated later
     let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
-    for cap in token_re.captures_iter(preprocessed.as_slice()) {
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
 
         let token = if cap.name("ident").is_some() {
             match cap.name("ident").unwrap() {
