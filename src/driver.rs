@@ -1,4 +1,5 @@
 use std::io;
+use std::io::Write;
 
 //use builder::*;
 use lexer::*;
@@ -20,13 +21,17 @@ pub enum Stage {
 }
 
 pub fn main_loop(stage: Stage) {
+    let mut stdin = io::stdin();
+    let mut stdout = io::stdout();
+    let mut input = String::new();
     let mut parser_settings = default_parser_settings();
     //let mut context = Context::new("main");
 
     'main: loop {
-        println!(">");
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).ok().expect("Failed to read line");
+        print!("> ");
+        stdout.flush().unwrap();
+        input.clear();
+        stdin.read_line(&mut input).ok().expect("Failed to read line");
         if input.as_str() == ".quit\n" {
             break;
         }
@@ -60,9 +65,10 @@ pub fn main_loop(stage: Stage) {
                     continue 'main
                 }
             }
-            println!(".");
+            print!(". ");
+            stdout.flush().unwrap();
             input.clear();
-            io::stdin().read_line(&mut input).ok().expect("Failed to read line");
+            stdin.read_line(&mut input).ok().expect("Failed to read line");
         }
 
         if stage == AST {
