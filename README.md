@@ -1,15 +1,9 @@
 # UPDATE: Make lexer and parser compile and work with the latest nightly Rust. Other stuff is disabled.
 
-# The stuff here is outdated and doesn't compile with the latest Rust
-# It is to be updated and finished in the nearest future
-
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
-I have just started working on the text, for the full tutorial have a look at the first link.
-The code for tutorial is fully implemented (it means, it has all the features described in the original
-tutorial and corresponds to the state of code for the [Chapter 7](http://llvm.org/docs/tutorial/LangImpl7.html)).
-
-Tutorial is outdated a little bit, I'm working on updating it to the latest Rust. Also at the moment there is a problem with execution engine (llvm_initialize_native_target() makes it fail). I updated code, so it can be compiled by the latest Rust, so it is still quite usable.
+This tutorial is a work in progress and at the moment I'm working on getting it fully working with
+the latest Rust and on improvinvg the way it uses LLVM.
 
 ## Table of Contents
 
@@ -59,9 +53,7 @@ To experiment with the code in this repo you need:
 
 * Cargo Rust package manager
 
-* LLVM (I have used ver. 3.5)
-
-* Python 2 interpreter
+* LLVM (I have used ver. 3.6)
 
 To build the code just clone the repo and execute
 
@@ -139,10 +131,6 @@ Project will have two crates: library and binary. All real functionality will be
 parse command line arguments and invoke the driver.
 
 [Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) is quite straightforward.
-The [docopt](https://github.com/docopt/docopt.rs) is added because we'll need to parse simple command line arguments.
-
-Rust at the moment does not have full LLVM bindings, so we'll need to add some functions. That addition is handled by a combination
-of [scripts called during compilation](http://doc.crates.io/build-script.html) and some rust code that can be found in `src/missing_llvm_bindings` directory.
 
 ### The lexer
 
@@ -165,7 +153,7 @@ To implement the lexer we'll use regular expressions. We have the next types of 
 The corresponding enumeration looks like this:
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
     Extern,
@@ -187,14 +175,6 @@ enums to be scoped in Rust):
 pub use self::Token::{
     Def,
     Extern,
-    If,
-    Then,
-    Else,
-    For,
-    In,
-    Binary,
-    Unary,
-    Var,
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -218,32 +198,32 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     let mut result = Vec::new();
 
-    // regex for token (just union of straightforward regexes for different token types)
+    // regex for token, just union of straightforward regexes for different token types
     // operators are parsed the same way as identifier and separated later
     let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
-    for cap in token_re.captures_iter(preprocessed.as_slice()) {
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
 
-        let token = if !cap.name("ident").is_empty() {
-            match cap.name("ident") {
+        let token = if cap.name("ident").is_some() {
+            match cap.name("ident").unwrap() {
                 "def" => Def,
                 "extern" => Extern,
                 ident => Ident(ident.to_string())
             }
-        } else if !cap.name("number").is_empty() {
-            match from_str::<f64>(cap.name("number")) {
-                Some(number) => Number(number),
-                None => panic!("Lexer failed trying to parse number")
+        } else if cap.name("number").is_some() {
+            match cap.name("number").unwrap().parse() {
+                Ok(number) => Number(number),
+                Err(_) => panic!("Lexer failed trying to parse number")
             }
-        } else if !cap.name("delimiter").is_empty() {
+        } else if cap.name("delimiter").is_some() {
             Delimiter
-        } else if !cap.name("oppar").is_empty() {
+        } else if cap.name("oppar").is_some() {
             OpeningParenthesis
-        } else if !cap.name("clpar").is_empty() {
+        } else if cap.name("clpar").is_some() {
             ClosingParenthesis
-        } else if !cap.name("comma").is_empty() {
+        } else if cap.name("comma").is_some() {
             Comma
         } else {
-            Operator(cap.name("operator").to_string())
+            Operator(cap.name("operator").unwrap().to_string())
         };
 
         result.push(token)
