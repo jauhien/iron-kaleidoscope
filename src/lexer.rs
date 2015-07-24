@@ -1,6 +1,8 @@
+//< lexer-tokens-use
 pub use self::Token::{
     Def,
     Extern,
+//> lexer-tokens-use
     If,
     Then,
     Else,
@@ -9,6 +11,7 @@ pub use self::Token::{
     Binary,
     Unary,
     Var,
+//< lexer-tokens-use
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -17,11 +20,14 @@ pub use self::Token::{
     Number,
     Operator
 };
+//> lexer-tokens-use
 
+//< lexer-tokens
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
     Extern,
+//> lexer-tokens
     If,
     Then,
     Else,
@@ -30,6 +36,7 @@ pub enum Token {
     Binary,
     Unary,
     Var,
+//< lexer-tokens
     Delimiter, //';' character
     OpeningParenthesis,
     ClosingParenthesis,
@@ -38,7 +45,9 @@ pub enum Token {
     Number(f64),
     Operator(String)
 }
+//> lexer-tokens
 
+//< lexer-tokenize
 pub fn tokenize(input: &str) -> Vec<Token> {
     // regex for commentaries (start with #, end with the line end)
     let comment_re = regex!(r"(?m)#.*\n");
@@ -49,13 +58,21 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     // regex for token, just union of straightforward regexes for different token types
     // operators are parsed the same way as identifier and separated later
-    let token_re = regex!(r"(?P<ident>\p{Alphabetic}\w*)|(?P<number>\d+\.?\d*)|(?P<delimiter>;)|(?P<oppar>\()|(?P<clpar>\))|(?P<comma>,)|(?P<operator>\S)");
-    for cap in token_re.captures_iter(preprocessed.as_str()) {
+    let token_re = regex!(concat!(
+        r"(?P<ident>\p{Alphabetic}\w*)|",
+        r"(?P<number>\d+\.?\d*)|",
+        r"(?P<delimiter>;)|",
+        r"(?P<oppar>\()|",
+        r"(?P<clpar>\))|",
+        r"(?P<comma>,)|",
+        r"(?P<operator>\S)"));
 
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
         let token = if cap.name("ident").is_some() {
             match cap.name("ident").unwrap() {
                 "def" => Def,
                 "extern" => Extern,
+//> lexer-tokenize
                 "if" => If,
                 "then" => Then,
                 "else" => Else,
@@ -64,6 +81,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                 "binary" => Binary,
                 "unary" => Unary,
                 "var" => Var,
+//< lexer-tokenize
                 ident => Ident(ident.to_string())
             }
         } else if cap.name("number").is_some() {
@@ -88,3 +106,4 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     result
 }
+//> lexer-tokenize
