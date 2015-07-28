@@ -6,26 +6,33 @@ use lexer::*;
 use parser::*;
 
 pub use self::Stage::{
-    Tokens,
-    AST,
+    Exec,
     IR,
-    Exec
+    AST,
+    Tokens
 };
 
+//< parser-stage
 #[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
-    Tokens,
-    AST,
+//> parser-stage
+    Exec,
     IR,
-    Exec
+//< parser-stage
+    AST,
+    Tokens
 }
+//> parser-stage
 
+//< parser-driver
 pub fn main_loop(stage: Stage) {
     let mut stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
+//> parser-driver
     //let mut context = Context::new("main");
+//< parser-driver
 
     'main: loop {
         print!("> ");
@@ -75,6 +82,7 @@ pub fn main_loop(stage: Stage) {
             println!("{:?}", ast);
             continue
         }
+//> parser-driver
 
         /*match ast.codegen(&mut context) {
             Ok((value, runnable)) => if runnable && stage == Exec {
@@ -84,9 +92,13 @@ pub fn main_loop(stage: Stage) {
             },
             Err(message) => println!("Error occured: {}", message)
         }*/
+//< parser-driver
     }
+//> parser-driver
 
     /*if stage == IR || stage == Exec {
         context.dump();
     }*/
+//< parser-driver
 }
+//> parser-driver

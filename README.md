@@ -300,7 +300,7 @@ Vec<ASTNode>
 where `ASTNode` is defined as
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ASTNode {
     ExternNode(Prototype),
     FunctionNode(Function)
@@ -318,16 +318,16 @@ prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 ```
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
-pub struct Prototype {
-    pub name: String,
-    pub args: Vec<String>
-}
-
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Function {
     pub prototype: Prototype,
     pub body: Expression
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Prototype {
+    pub name: String,
+    pub args: Vec<String>
 }
 ```
 
@@ -349,7 +349,7 @@ parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 possible expression type:
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Expression {
     LiteralExpr(f64),
     VariableExpr(String),
@@ -394,6 +394,7 @@ pub type ParsingResult = Result<(Vec<ASTNode>, Vec<Token>), String>;
 The function prototype for the parsing function looks like this:
 
 ```rust
+pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult;
 ```
 
@@ -437,7 +438,7 @@ fn error<T>(message : &str) -> PartParsingResult<T> {
 }
 ```
 
-These functions are generic as we will need to return different data types depending on what we are parsing (prototype, expression, etc.)
+This function and data type are generic as we will need to return objects of different types depending on what we are parsing (prototype, expression, etc.)
 Top level parsing functions will return `ASTNode` which can be directly inserted into `Vec<ASTNode>` that represents the AST.
 
 We can implement first production rules in the topmost parsing function now:
@@ -461,7 +462,8 @@ token it sees:
 With these points in mind we can implement the `parse` function this way:
 
 ```rust
-pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult {
+pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult
+{
     let mut rest = tokens.to_vec();
     // we read tokens from the end of the vector
     // using it as a stack
@@ -538,7 +540,7 @@ macro_rules! parse_try(
             Bad(message) => return Bad(message)
         }
     )
-)
+);
 ```
 
 It declares two variants: with and without additional parameters. The first one calls the second one with zero additional
@@ -573,6 +575,7 @@ macro_rules! expect_token (
             _ => return error($error)
         }
     );
+
     ([ $($token:pat, $value:expr, $result:stmt);+ ] else $not_matched:block <= $tokens:ident, $parsed_tokens:ident) => (
         match $tokens.last().map(|i| {i.clone()}) {
             $(
@@ -585,7 +588,7 @@ macro_rules! expect_token (
             _ => {$not_matched}
         }
     )
-)
+);
 ```
 
 This macro automatically handles inserting tokens into the parsed tokens vector and returning of `NotComplete` (together with
@@ -639,8 +642,7 @@ prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 ```
 
 ```rust
-#[allow(unused_variables)]
-fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
+fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
     let mut parsed_tokens = Vec::new();
 
     let name = expect_token!([
@@ -666,8 +668,8 @@ fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
 
 Function prototype starts with the function name. Then opening parenthesis goes.
 After opening parenthesis we have a list of function parameters (`Ident` tokens).
-Note, that we ignore `Comma` tokens, so they are equivalent to whitspaces (like
-in old good Clojure language). If we find a closing parenthesis, prototype
+Note, that we ignore `Comma` tokens, so they are equivalent to whitspaces.
+If we find a closing parenthesis, prototype
 parsing is done. If we find any other token we emit an error.
 
 The only top level item still left are top level expressions. To make
@@ -756,12 +758,11 @@ but expressions now.
 Parsing of literal expressions is very straightforward:
 
 ```rust
-#[allow(unused_variables)]
-fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+fn parse_literal_expr(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     let mut parsed_tokens = Vec::new();
 
     let value = expect_token!(
-              [Number(val), Number(val), val] <= tokens,
+        [Number(val), Number(val), val] <= tokens,
         parsed_tokens, "literal expected");
 
     Good(LiteralExpr(value), parsed_tokens)
@@ -830,7 +831,7 @@ pub fn default_parser_settings() -> ParserSettings {
 }
 ```
 
-A binary expression is a primary expression followed by zero or more (operator, primary expression) pairs.
+A binary expression is a primary expression followed by zero or more `(operator, primary expression)` pairs.
 The expression parsing function looks like this:
 
 ```rust
@@ -842,7 +843,7 @@ fn parse_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartP
 }
 ```
 
-`parse_binary_expr` will return LHS if there are no (operator, primary expression) pairs or parse the whole expression.
+`parse_binary_expr` will return LHS if there are no `(operator, primary expression)` pairs or parse the whole expression.
 
 To parse a binary expression we will use the following algorithm. Its input is:
 
@@ -929,14 +930,14 @@ start from command line options parsing. We will use
 
 ```rust
 docopt!(Args, "
-Usage: iron_kaleidoscope [(-l | -p )]
+Usage: iron_kaleidoscope [(-l | -p | -i)]
 
 Options:
     -l  Run only lexer and show its output.
     -p  Run only parser and show its output.
-")
+    -i  Run only IR builder and show its output.
+");
 
-#[cfg(not(test))]
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
 
@@ -953,10 +954,10 @@ fn main() {
 The `Stage` enum is defined in the driver:
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
-    Tokens,
-    AST
+    AST,
+    Tokens
 }
 ```
 
@@ -964,12 +965,17 @@ Driver itself looks like this:
 
 ```rust
 pub fn main_loop(stage: Stage) {
+    let mut stdin = io::stdin();
+    let mut stdout = io::stdout();
+    let mut input = String::new();
     let mut parser_settings = default_parser_settings();
 
     'main: loop {
-        print!(">");
-        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
-        if input.as_slice() == ".quit\n" {
+        print!("> ");
+        stdout.flush().unwrap();
+        input.clear();
+        stdin.read_line(&mut input).ok().expect("Failed to read line");
+        if input.as_str() == ".quit\n" {
             break;
         }
 
@@ -978,9 +984,9 @@ pub fn main_loop(stage: Stage) {
         // tokens left from the previous lines
         let mut prev = Vec::new();
         loop {
-            let tokens = tokenize(input.as_slice());
+            let tokens = tokenize(input.as_str());
             if stage == Tokens {
-                println!("{}", tokens);
+                println!("{:?}", tokens);
                 continue 'main
             }
 
@@ -991,7 +997,7 @@ pub fn main_loop(stage: Stage) {
                 Ok((parsed_ast, rest)) => {
                     ast.extend(parsed_ast.into_iter());
                     if rest.is_empty() {
-                        // we have parsed the full expression
+                        // we have parsed a full expression
                         break
                     } else {
                         prev = rest;
@@ -1002,12 +1008,14 @@ pub fn main_loop(stage: Stage) {
                     continue 'main
                 }
             }
-            print!(".");
-            input = io::stdin().read_line().ok().expect("Failed to read line");
+            print!(". ");
+            stdout.flush().unwrap();
+            input.clear();
+            stdin.read_line(&mut input).ok().expect("Failed to read line");
         }
 
         if stage == AST {
-            println!("{}", ast);
+            println!("{:?}", ast);
             continue
         }
     }
@@ -1015,6 +1023,8 @@ pub fn main_loop(stage: Stage) {
 ```
 
 ## LLVM IR code generation
+
+**NOTE: this is outdated, I'm working currently on making IR generation work again**
 
 Before it we have used nothing from LLVM libraries. The described
 lexer and parser have nothing LLVM specific. It is a time to start a

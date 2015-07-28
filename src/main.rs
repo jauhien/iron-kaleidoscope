@@ -6,9 +6,9 @@ extern crate docopt;
 
 extern crate iron_kaleidoscope;
 
-#[cfg(not(test))]
 use iron_kaleidoscope::driver::{main_loop, Tokens, AST, IR, Exec};
 
+//< parser-main
 docopt!(Args, "
 Usage: iron_kaleidoscope [(-l | -p | -i)]
 
@@ -18,24 +18,34 @@ Options:
     -i  Run only IR builder and show its output.
 ");
 
-#[cfg(not(test))]
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
 
     let stage = if args.flag_l {
         Tokens
+//> parser-main
     } else if args.flag_p {
         AST
     } else if args.flag_i {
         IR
+//< parser-main
     } else {
         AST
+//> parser-main
         //Exec
+//< parser-main
     };
+//> parser-main
 
     if stage == IR || stage == Exec {
         panic!("Not implemented");
     } else {
-        main_loop(stage);
+//< parser-main
+
+    main_loop(stage);
+//> parser-main
     }
+
+//< parser-main
 }
+//> parser-main

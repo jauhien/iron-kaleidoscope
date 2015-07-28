@@ -21,11 +21,32 @@ def parse_source(source):
         elif line[0:3] == "//>":
             active_snippets = active_snippets.difference(set(line[3:].split()))
         else:
+            join = False
+            w = False
+            if line[0:5] == "/*j*/":
+                line = line[5:]
+                join = True
+            elif line[0:6] == "/*jw*/":
+                line = line[6:]
+                join = True
+                w = True
+            if join:
+                line = line.lstrip()
+                if w:
+                    line = " " + line
+
             for snippet in active_snippets:
                 try:
                     snippets[snippet].append(line)
                 except KeyError:
                     snippets[snippet] = [line]
+
+                if join:
+                    try:
+                        snippets[snippet][-2] = snippets[snippet][-2].rstrip('\n')
+                    except IndexError:
+                        pass
+
     return snippets
 
 def parse_source_file(fname):

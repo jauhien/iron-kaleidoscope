@@ -1,0 +1,21 @@
+//< parser-grammar parser-grammar-program parser-grammar-top
+program          : [[statement | expression] Delimiter ? ]*;
+//> parser-grammar-program
+//< parser-grammar-statements
+statement        : [declaration | definition];
+declaration      : Extern prototype;
+//< parser-grammar-defproto
+definition       : Def prototype expression;
+//> parser-grammar-top parser-grammar-statements
+//< parser-grammar-proto
+prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+//> parser-grammar-defproto parser-grammar-proto
+//< parser-grammar-expr parser-grammar-binary
+expression       : [primary_expr (Op primary_expr)*];
+//> parser-grammar-binary
+//< parser-grammar-primary
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
+parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+//> parser-grammar-expr parser-grammar-primary
+//> parser-grammar

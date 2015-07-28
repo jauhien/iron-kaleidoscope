@@ -199,15 +199,7 @@ with the uppercase name terminals and correspond to the names in the `Token` enu
 in the lexer.
 
 ```{.ebnf .notation}
-program          : [[statement | expression] Delimiter ? ]*;
-statement        : [declaration | definition];
-declaration      : Extern prototype;
-definition       : Def prototype expression;
-prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
-expression       : [primary_expr (Op primary_expr)*];
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
-call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
-parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+<<<grammar.ebnf:parser-grammar>>>
 ```
 
 ### The Abstract Syntax Tree (AST)
@@ -215,7 +207,7 @@ parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 Now we'll create data types corresponding to every item in the Kaleidoscope grammar.
 
 ```{.ebnf .notation}
-program          : [[statement | expression] Delimiter ? ]*;
+<<<grammar.ebnf:parser-grammar-program>>>
 ```
 
 Program is a sequence of statements and expressions. To make life easier in the future we will
@@ -232,11 +224,7 @@ Vec<ASTNode>
 where `ASTNode` is defined as
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
-pub enum ASTNode {
-    ExternNode(Prototype),
-    FunctionNode(Function)
-}
+<<<src/parser.rs:parser-astnode>>>
 ```
 
 `ExternNode` corresponds to the	`declaration` item in the grammar and `FunctionNode` corresponds to
@@ -245,22 +233,11 @@ the `definition` item.
 We define `Prototype` and `Function` according to the grammar:
 
 ```{.ebnf .notation}
-definition       : Def prototype expression;
-prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+<<<grammar.ebnf:parser-grammar-defproto>>>
 ```
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
-pub struct Prototype {
-    pub name: String,
-    pub args: Vec<String>
-}
-
-#[deriving(PartialEq, Clone, Show)]
-pub struct Function {
-    pub prototype: Prototype,
-    pub body: Expression
-}
+<<<src/parser.rs:parser-defproto>>>
 ```
 
 Functions are typed only by the number of arguments, as the onliest type
@@ -271,23 +248,14 @@ This one is the most complicated and difficult to parse, as it includes binary e
 with operator precedence.
 
 ```{.ebnf .notation}
-expression       : [primary_expr (Op primary_expr)*];
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
-call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
-parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+<<<grammar.ebnf:parser-grammar-expr>>>
 ```
 
 `Expression` data type will be an `enum` with entries corresponding to every
 possible expression type:
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
-pub enum Expression {
-    LiteralExpr(f64),
-    VariableExpr(String),
-    BinaryExpr(String, Box<Expression>, Box<Expression>),
-    CallExpr(String, Vec<Expression>)
-}
+<<<src/parser.rs:parser-expr>>>
 ```
 
 `LiteralExpr` is a number (`Literal` token). `VariableExpr` is a variable name (`Ident` token).
@@ -320,12 +288,13 @@ As a result we will have again pair of a parsed AST and tokens that were not par
 Also we need some kind of error handling. It will be achieved by the usage of `Result` with an error message:
 
 ```rust
-pub type ParsingResult = Result<(Vec<ASTNode>, Vec<Token>), String>;
+<<<src/parser.rs:parser-result>>>
 ```
 
 The function prototype for the parsing function looks like this:
 
 ```rust
+<<<src/parser.rs:parser-parse-sign>>>
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult;
 ```
 
@@ -354,31 +323,22 @@ They will have three possible results:
 Corresponding result data type looks like this:
 
 ```rust
-enum PartParsingResult<T> {
-    Good(T, Vec<Token>),
-    NotComplete,
-    Bad(String)
-}
+<<<src/parser.rs:parser-part-result>>>
 ```
 
 We will need a helper function for error generation:
 
 ```rust
-fn error<T>(message : &str) -> PartParsingResult<T> {
-    Bad(message.to_string())
-}
+<<<src/parser.rs:parser-error>>>
 ```
 
-These functions are generic as we will need to return different data types depending on what we are parsing (prototype, expression, etc.)
+This function and data type are generic as we will need to return objects of different types depending on what we are parsing (prototype, expression, etc.)
 Top level parsing functions will return `ASTNode` which can be directly inserted into `Vec<ASTNode>` that represents the AST.
 
 We can implement first production rules in the topmost parsing function now:
 
 ```{.ebnf .notation}
-program          : [[statement | expression] Delimiter ? ]*;
-statement        : [declaration | definition];
-declaration      : Extern prototype;
-definition       : Def prototype expression;
+<<<grammar.ebnf:parser-grammar-top>>>
 ```
 
 As one can see from this piece of grammar, we have 3 top level items.
@@ -393,40 +353,7 @@ token it sees:
 With these points in mind we can implement the `parse` function this way:
 
 ```rust
-pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult {
-    let mut rest = tokens.to_vec();
-    // we read tokens from the end of the vector
-    // using it as a stack
-    rest.reverse();
-
-    // we will add new AST nodes to already parsed ones
-    let mut ast = parsed_tree.to_vec();
-
-    loop {
-        // look at the current token and determine what to parse
-        // based on its value
-        let cur_token =
-            match rest.last() {
-                Some(token) => token.clone(),
-                None => break
-            };
-        let result = match cur_token {
-            Def => parse_function(&mut rest, settings),
-            Extern => parse_extern(&mut rest, settings),
-            Delimiter => {rest.pop(); continue},
-            _ => parse_expression(&mut rest, settings)
-        };
-        match result {
-            Good(ast_node, _) => ast.push(ast_node),
-            NotComplete => break,
-            Bad(message) => return Err(message)
-        }
-    }
-
-    // unparsed tokens
-    rest.reverse();
-    Ok((ast, rest))
-}
+<<<src/parser.rs:parser-parse>>>
 ```
 
 ### Helper macros for work with tokens
@@ -451,26 +378,7 @@ where `...` means additional parameters.
 The calling macro looks like this:
 
 ```rust
-macro_rules! parse_try(
-    ($function:ident, $tokens:ident, $settings:ident, $parsed_tokens:ident) => (
-        parse_try!($function, $tokens, $settings, $parsed_tokens,)
-    );
-
-    ($function:ident, $tokens:ident, $settings:ident, $parsed_tokens:ident, $($arg:expr),*) => (
-        match $function($tokens, $settings, $($arg),*) {
-            Good(ast, toks) => {
-                $parsed_tokens.extend(toks.into_iter());
-                ast
-            },
-            NotComplete => {
-                $parsed_tokens.reverse();
-                $tokens.extend($parsed_tokens.into_iter());
-                return NotComplete;
-            },
-            Bad(message) => return Bad(message)
-        }
-    )
-)
+<<<src/parser.rs:parser-parse-try>>>
 ```
 
 It declares two variants: with and without additional parameters. The first one calls the second one with zero additional
@@ -488,36 +396,7 @@ also tries to match with different alternatives, but if no one is matched, it ju
 last case no tokens from the input should be consumed by the macro itself.
 
 ```rust
-macro_rules! expect_token (
-    ([ $($token:pat, $value:expr, $result:stmt);+ ] <= $tokens:ident, $parsed_tokens:ident, $error:expr) => (
-        match $tokens.pop() {
-            $(
-                Some($token) => {
-                    $parsed_tokens.push($value);
-                    $result
-                },
-             )+
-             None => {
-                 $parsed_tokens.reverse();
-                 $tokens.extend($parsed_tokens.into_iter());
-                 return NotComplete;
-             },
-            _ => return error($error)
-        }
-    );
-    ([ $($token:pat, $value:expr, $result:stmt);+ ] else $not_matched:block <= $tokens:ident, $parsed_tokens:ident) => (
-        match $tokens.last().map(|i| {i.clone()}) {
-            $(
-                Some($token) => {
-                    $tokens.pop();
-                    $parsed_tokens.push($value);
-                    $result
-                },
-             )+
-            _ => {$not_matched}
-        }
-    )
-)
+<<<src/parser.rs:parser-expect-token>>>
 ```
 
 This macro automatically handles inserting tokens into the parsed tokens vector and returning of `NotComplete` (together with
@@ -529,21 +408,13 @@ We have two kinds of statements in the Kaleidoscope language: function
 declarations and function definitions:
 
 ```{.ebnf .notation}
-statement        : [declaration | definition];
-declaration      : Extern prototype;
-definition       : Def prototype expression;
+<<<grammar.ebnf:parser-grammar-statements>>>
 ```
 
 Let's start from the easier one: function declarations. The function is really straightforward:
 
 ```rust
-fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
-    // eat Extern token
-    tokens.pop();
-    let mut parsed_tokens = vec![Extern];
-    let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
-    Good(ExternNode(prototype), parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-extern>>>
 ```
 
 We eat `Extern` token and parse the function prototype. That's all.
@@ -551,14 +422,7 @@ We eat `Extern` token and parse the function prototype. That's all.
 Function definition is not very complicated also:
 
 ```rust
-fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
-    // eat Def token
-    tokens.pop();
-    let mut parsed_tokens = vec!(Def);
-    let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
-    let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
-    Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-function>>>
 ```
 
 Again, we eat `Def` token, we parse prototype and function body. That's all.
@@ -567,52 +431,24 @@ So far we just called another parsing functions and matched some tokens (like `D
 That's time for some real parsing now.
 
 ```{.ebnf .notation}
-prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+<<<grammar.ebnf:parser-grammar-proto>>>
 ```
 
 ```rust
-#[allow(unused_variables)]
-fn parse_prototype(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
-    let mut parsed_tokens = Vec::new();
-
-    let name = expect_token!([
-            Ident(name), Ident(name.clone()), name
-        ] <= tokens, parsed_tokens, "expected function name in prototype");
-
-    expect_token!(
-        [OpeningParenthesis, OpeningParenthesis, ()] <= tokens,
-        parsed_tokens, "expected '(' in prototype");
-
-    let mut args = Vec::new();
-    loop {
-        expect_token!([
-            Ident(arg), Ident(arg.clone()), args.push(arg.clone());
-            Comma, Comma, continue;
-            ClosingParenthesis, ClosingParenthesis, break
-        ] <= tokens, parsed_tokens, "expected ')' in prototype");
-    }
-
-    Good(Prototype{name: name, args: args}, parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-prototype>>>
 ```
 
 Function prototype starts with the function name. Then opening parenthesis goes.
 After opening parenthesis we have a list of function parameters (`Ident` tokens).
-Note, that we ignore `Comma` tokens, so they are equivalent to whitspaces (like
-in old good Clojure language). If we find a closing parenthesis, prototype
+Note, that we ignore `Comma` tokens, so they are equivalent to whitspaces.
+If we find a closing parenthesis, prototype
 parsing is done. If we find any other token we emit an error.
 
 The only top level item still left are top level expressions. To make
 further work with them easier, we close them in an anonymous function.
 
 ```rust
-fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
-    let mut parsed_tokens = Vec::new();
-    let expression = parse_try!(parse_expr, tokens, settings, parsed_tokens);
-    let prototype = Prototype{name: "".to_string(), args: vec![]};
-    let lambda = Function{prototype: prototype, body: expression};
-    Good(FunctionNode(lambda), parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-expression>>>
 ```
 
 Now, when we have code that handles parsing of all top level items, we can proceed
@@ -624,21 +460,11 @@ We will start from easier topic: parsing of primary expressions. Then we will us
 expressions parsing functions to parse operands of binary operators.
 
 ```{.ebnf .notation}
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
-call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
-parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+<<<grammar.ebnf:parser-grammar-primary>>>
 ```
 
 ```rust
-fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
-    match tokens.last() {
-        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
-        Some(&Number(_)) => parse_literal_expr(tokens, settings),
-        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
-        None => return NotComplete,
-        _ => error("unknow token when expecting an expression")
-    }
-}
+<<<src/parser.rs:parser-parse-primary-expr>>>
 ```
 
 To start parsing of a primary expression we just look at the next token and
@@ -649,31 +475,7 @@ We start with parsing of identifier and call expressions. We use the same parsin
 for them, as they both start from the `Ident` token.
 
 ```rust
-fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
-    let mut parsed_tokens = Vec::new();
-
-    let name = expect_token!(
-        [Ident(name), Ident(name.clone()), name] <= tokens,
-        parsed_tokens, "identificator expected");
-
-    expect_token!(
-        [OpeningParenthesis, OpeningParenthesis, ()]
-        else {return Good(VariableExpr(name), parsed_tokens)}
-        <= tokens, parsed_tokens);
-
-    let mut args = Vec::new();
-    loop {
-        expect_token!(
-            [ClosingParenthesis, ClosingParenthesis, break;
-             Comma, Comma, continue]
-            else {
-                args.push(parse_try!(parse_expr, tokens, settings, parsed_tokens));
-            }
-            <= tokens, parsed_tokens);
-    }
-
-    Good(CallExpr(name, args), parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-ident-expr>>>
 ```
 
 First, we parse the name (it will be the name of a variable or function to call).
@@ -688,34 +490,13 @@ but expressions now.
 Parsing of literal expressions is very straightforward:
 
 ```rust
-#[allow(unused_variables)]
-fn parse_literal_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
-    let mut parsed_tokens = Vec::new();
-
-    let value = expect_token!(
-              [Number(val), Number(val), val] <= tokens,
-        parsed_tokens, "literal expected");
-
-    Good(LiteralExpr(value), parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-literal-expr>>>
 ```
 
 Parenthesis expressions are also easy to parse:
 
 ```rust
-fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
-    // eat the opening parenthesis
-    tokens.pop();
-    let mut parsed_tokens = vec![OpeningParenthesis];
-
-    let expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
-
-    expect_token!(
-        [ClosingParenthesis, ClosingParenthesis, ()] <= tokens,
-        parsed_tokens, "')' expected");
-
-    Good(expr, parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-parenthesis-expr>>>
 ```
 
 Now, when we can parse primary expressions, it is the time for more complicated ones.
@@ -725,7 +506,7 @@ Now, when we can parse primary expressions, it is the time for more complicated 
 Our grammar for expressions looked like this:
 
 ```{.ebnf .notation}
-expression       : [primary_expr (Op primary_expr)*];
+<<<grammar.ebnf:parser-grammar-binary>>>
 ```
 
 The problem with this grammar is that it really does not reveal the semantics of binary expressions.
@@ -742,39 +523,23 @@ expressions. If they are not Lisp language compilers, of course.
 We will keep information about operator precedence in a map. That's where our `settings` structure is needed:
 
 ```rust
-pub struct ParserSettings {
-    operator_precedence: HashMap<String, i32>
-}
+<<<src/parser.rs:parser-settings>>>
 ```
 
 Let's create a function that fills this map with some operators:
 
 ```rust
-pub fn default_parser_settings() -> ParserSettings {
-    let mut operator_precedence = HashMap::new();
-    operator_precedence.insert("=".to_string(), 2);
-    operator_precedence.insert("<".to_string(), 10);
-    operator_precedence.insert("+".to_string(), 20);
-    operator_precedence.insert("-".to_string(), 20);
-    operator_precedence.insert("*".to_string(), 40);
-
-    ParserSettings{operator_precedence: operator_precedence}
-}
+<<<src/parser.rs:parser-default-settings>>>
 ```
 
-A binary expression is a primary expression followed by zero or more (operator, primary expression) pairs.
+A binary expression is a primary expression followed by zero or more `(operator, primary expression)` pairs.
 The expression parsing function looks like this:
 
 ```rust
-fn parse_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
-    let mut parsed_tokens = Vec::new();
-    let lhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
-    let expr = parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, 0, &lhs);
-    Good(expr, parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-expr>>>
 ```
 
-`parse_binary_expr` will return LHS if there are no (operator, primary expression) pairs or parse the whole expression.
+`parse_binary_expr` will return LHS if there are no `(operator, primary expression)` pairs or parse the whole expression.
 
 To parse a binary expression we will use the following algorithm. Its input is:
 
@@ -796,51 +561,7 @@ continue until the current token is not an operator, or it is an
 operator with the precedence lesser than the minimal allowed one.
 
 ```rust
-fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, expr_precedence : i32, lhs : &Expression) -> PartParsingResult<Expression> {
-    // start with LHS value
-    let mut result = lhs.clone();
-    let mut parsed_tokens = Vec::new();
-
-    loop {
-        // continue until the current token is not an operator
-        // or it is an operator with precedence lesser than expr_precedence
-        let (operator, precedence) = match tokens.last() {
-            Some(&Operator(ref op)) => match settings.operator_precedence.get(op) {
-                Some(pr) if *pr >= expr_precedence => (op.clone(), *pr),
-                None => return error("unknown operator found"),
-                _ => break
-            },
-            _ => break
-        };
-        tokens.pop();
-        parsed_tokens.push(Operator(operator.clone()));
-
-        // parse primary RHS expression
-        let mut rhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
-
-        // parse all the RHS operators until their precedence is
-        // bigger than the current one
-        loop {
-            let binary_rhs = match tokens.last().map(|i| {i.clone()}) {
-                Some(Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
-                    Some(pr) if pr > precedence => {
-                        parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, pr, &rhs)
-                    },
-                    None => return error("unknown operator found"),
-                    _ => break
-                },
-                _ => break
-            };
-
-            rhs = binary_rhs;
-        }
-
-        // merge LHS and RHS
-        result = BinaryExpr(operator, box result, box rhs);
-    }
-
-    Good(result, parsed_tokens)
-}
+<<<src/parser.rs:parser-parse-binary-expr>>>
 ```
 
 That's how parsing of binary expressions looks like.
@@ -860,93 +581,24 @@ start from command line options parsing. We will use
 [docopt](https://github.com/docopt/docopt.rs) library for this:
 
 ```rust
-docopt!(Args, "
-Usage: iron_kaleidoscope [(-l | -p )]
-
-Options:
-    -l  Run only lexer and show its output.
-    -p  Run only parser and show its output.
-")
-
-#[cfg(not(test))]
-fn main() {
-    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-
-    let stage = if args.flag_l {
-        Tokens
-    } else {
-        AST
-    };
-
-    main_loop(stage);
-}
+<<<src/main.rs:parser-main>>>
 ```
 
 The `Stage` enum is defined in the driver:
 
 ```rust
-#[deriving(PartialEq, Clone, Show)]
-pub enum Stage {
-    Tokens,
-    AST
-}
+<<<src/driver.rs:parser-stage>>>
 ```
 
 Driver itself looks like this:
 
 ```rust
-pub fn main_loop(stage: Stage) {
-    let mut parser_settings = default_parser_settings();
-
-    'main: loop {
-        print!(">");
-        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
-        if input.as_slice() == ".quit\n" {
-            break;
-        }
-
-        // the constructed AST
-        let mut ast = Vec::new();
-        // tokens left from the previous lines
-        let mut prev = Vec::new();
-        loop {
-            let tokens = tokenize(input.as_slice());
-            if stage == Tokens {
-                println!("{}", tokens);
-                continue 'main
-            }
-
-            prev.extend(tokens.into_iter());
-
-            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
-            match parsing_result {
-                Ok((parsed_ast, rest)) => {
-                    ast.extend(parsed_ast.into_iter());
-                    if rest.is_empty() {
-                        // we have parsed the full expression
-                        break
-                    } else {
-                        prev = rest;
-                    }
-                },
-                Err(message) => {
-                    println!("Error occured: {}", message);
-                    continue 'main
-                }
-            }
-            print!(".");
-            input = io::stdin().read_line().ok().expect("Failed to read line");
-        }
-
-        if stage == AST {
-            println!("{}", ast);
-            continue
-        }
-    }
-}
+<<<src/driver.rs:parser-driver>>>
 ```
 
 ## LLVM IR code generation
+
+**NOTE: this is outdated, I'm working currently on making IR generation work again**
 
 Before it we have used nothing from LLVM libraries. The described
 lexer and parser have nothing LLVM specific. It is a time to start a
