@@ -1,34 +1,36 @@
 use std::collections::HashMap;
-use std::ffi::CString;
 use std::iter;
-use libc::{c_char, c_uint};
 
-use rustc::lib::llvm;
+use iron_llvm::core;
+use iron_llvm::core::basic_block::{BasicBlock};
+use iron_llvm::core::instruction::{PHINode, PHINodeRef};
+use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value, RealConstRef, RealConstCtor};
+use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef, RealTypeCtor, RealTypeRef};
+use iron_llvm::{LLVMRef, LLVMRefCtor};
 
-use missing_llvm_bindings::*;
-use parser::*;
+use llvm_sys::LLVMRealPredicate::{LLVMRealOLT, LLVMRealONE};
+use llvm_sys::core::LLVMDeleteFunction;
+use llvm_sys::prelude::LLVMValueRef;
+
+use parser;
 
 pub struct Context {
-    context: llvm::ContextRef,
-    module: llvm::ModuleRef,
-    builder: llvm::BuilderRef,
-    exec_engine: llvm::ExecutionEngineRef,
-    function_passmanager: llvm::PassManagerRef,
-    named_values: HashMap<String, llvm::ValueRef>
+    context: core::Context,
+    module: core::Module,
+    builder: core::Builder,
+//  exec_engine: llvm::ExecutionEngineRef,
+//  function_passmanager: llvm::PassManagerRef,
+    named_values: HashMap<String, LLVMValueRef>,
+    ty: RealTypeRef
 }
 
-pub type IRBuildingResult = Result<(llvm::ValueRef, bool), String>;
+pub type IRBuildingResult = Result<(LLVMValueRef, bool), String>;
 
 pub trait IRBuilder {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult;
 }
 
-pub fn dump_value(value: llvm::ValueRef) {
-    unsafe {
-        llvm::LLVMDumpValue(value);
-    }
-}
-
+/*
 #[no_mangle]
 pub extern fn printd(x: f64) -> f64 {
     println!("> {} <", x);
@@ -55,65 +57,53 @@ pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
         LLVMGenericValueToFloat(ty, result)
     }
 }
+*/
 
 impl Context {
     pub fn new(module_name : &str) -> Context {
-        unsafe {
-            //llvm_initialize_native_target();
+        //llvm_initialize_native_target();
 
-            let context = llvm::LLVMContextCreate();
+        let context = core::Context::get_global();
+        let module = core::Module::new(module_name);
+        let builder = core::Builder::new();
+        let named_values = HashMap::new();
+        let ty = RealTypeRef::get_double();
 
-            let c_module_name = CString::from_slice(module_name.as_bytes());
-            let module = llvm::LLVMModuleCreateWithNameInContext(c_module_name.as_ptr(), context);
-            let builder = llvm::LLVMCreateBuilderInContext(context);
-            let named_values = HashMap::new();
+/*      let mut exec_engine = 0 as llvm::ExecutionEngineRef;
+        let mut error = 0 as *const c_char;
+        LLVMCreateExecutionEngineForModule(&mut exec_engine, module, &mut error);
+        assert!(exec_engine != 0 as llvm::ExecutionEngineRef);
 
-            let mut exec_engine = 0 as llvm::ExecutionEngineRef;
-            let mut error = 0 as *const c_char;
-            LLVMCreateExecutionEngineForModule(&mut exec_engine, module, &mut error);
-            assert!(exec_engine != 0 as llvm::ExecutionEngineRef);
+        let function_passmanager = llvm::LLVMCreateFunctionPassManagerForModule(module);
 
-            let function_passmanager = llvm::LLVMCreateFunctionPassManagerForModule(module);
+        let target_data = LLVMGetExecutionEngineTargetData(exec_engine);
+        let data_layout = LLVMCopyStringRepOfTargetData(target_data);
+        llvm::LLVMSetDataLayout(module, data_layout);
+        llvm::LLVMAddTargetData(target_data, function_passmanager);
+        LLVMDisposeMessage(data_layout);
 
-            let target_data = LLVMGetExecutionEngineTargetData(exec_engine);
-            let data_layout = LLVMCopyStringRepOfTargetData(target_data);
-            llvm::LLVMSetDataLayout(module, data_layout);
-            llvm::LLVMAddTargetData(target_data, function_passmanager);
-            LLVMDisposeMessage(data_layout);
+        llvm::LLVMAddVerifierPass(function_passmanager);
+        LLVMAddPromoteMemoryToRegisterPass(function_passmanager);
+        llvm::LLVMAddBasicAliasAnalysisPass(function_passmanager);
+        llvm::LLVMAddInstructionCombiningPass(function_passmanager);
+        llvm::LLVMAddReassociatePass(function_passmanager);
+        llvm::LLVMAddGVNPass(function_passmanager);
+        llvm::LLVMAddCFGSimplificationPass(function_passmanager);
+        llvm::LLVMInitializeFunctionPassManager(function_passmanager);
+*/
 
-            llvm::LLVMAddVerifierPass(function_passmanager);
-            LLVMAddPromoteMemoryToRegisterPass(function_passmanager);
-            llvm::LLVMAddBasicAliasAnalysisPass(function_passmanager);
-            llvm::LLVMAddInstructionCombiningPass(function_passmanager);
-            llvm::LLVMAddReassociatePass(function_passmanager);
-            llvm::LLVMAddGVNPass(function_passmanager);
-            llvm::LLVMAddCFGSimplificationPass(function_passmanager);
-            llvm::LLVMInitializeFunctionPassManager(function_passmanager);
-
-            Context { context: context,
-                      module: module,
-                      builder: builder,
-                      exec_engine: exec_engine,
-                      function_passmanager:function_passmanager,
-                      named_values: named_values }
+        Context { context: context,
+                  module: module,
+                  builder: builder,
+//                exec_engine: exec_engine,
+//                function_passmanager:function_passmanager,
+                  named_values: named_values,
+                  ty: ty
         }
     }
 
     pub fn dump(&self) {
-        unsafe {
-            llvm::LLVMDumpModule(self.module);
-        }
-    }
-}
-
-impl Drop for Context {
-    fn drop(&mut self) {
-        unsafe {
-            llvm::LLVMDisposePassManager(self.function_passmanager);
-            LLVMDisposeExecutionEngine(self.exec_engine);
-            llvm::LLVMDisposeBuilder(self.builder);
-            llvm::LLVMContextDispose(self.context);
-        }
+        self.module.dump();
     }
 }
 
@@ -121,405 +111,16 @@ fn error(message : &str) -> IRBuildingResult {
     Err(message.to_string())
 }
 
-fn create_entry_block_alloca(context: &mut Context, function: llvm::ValueRef, var_name: String) -> llvm::ValueRef {
-    unsafe {
-        let ty = llvm::LLVMDoubleTypeInContext(context.context);
-        let builder = llvm::LLVMCreateBuilderInContext(context.context);
-        let bb = llvm::LLVMGetEntryBasicBlock(function);
-        llvm::LLVMPositionBuilder(builder, bb, llvm::LLVMGetFirstInstruction(bb));
-
-        let c_var_name = CString::from_slice(var_name.as_bytes());
-        let result = llvm::LLVMBuildAlloca(builder, ty, c_var_name.as_ptr());
-        llvm::LLVMDisposeBuilder(builder);
-
-        result
-    }
-}
-
-impl IRBuilder for Expression {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
-        unsafe {
-            match self {
-                &LiteralExpr(ref value) => {
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    Ok((llvm::LLVMConstReal(ty, *value), false))
-                },
-                &VariableExpr(ref name) => {
-                    match context.named_values.get(name) {
-                        Some(value) => {
-                            let c_name = CString::from_slice(name.as_bytes());
-                            let var = llvm::LLVMBuildLoad(context.builder,
-                                                          *value,
-                                                          c_name.as_ptr());
-                            Ok((var, false))
-                        },
-                        None => error("unknown variable name")
-                    }
-                },
-                &UnaryExpr(ref operator, ref operand) => {
-                    let (operand, _) = try!(operand.codegen(context));
-
-                    let name = "unary".to_string() + operator.as_slice();
-                    let c_name = CString::from_slice(name.as_bytes());
-                    let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
-                    if function.is_null() {
-                        return error("unary operator not found")
-                    }
-
-                    let args_value = vec![operand];
-
-                    let c_unop = CString::from_slice("unop".as_bytes());
-                    Ok((llvm::LLVMBuildCall(context.builder,
-                                            function,
-                                            args_value.as_ptr(),
-                                            args_value.len() as c_uint,
-                                            c_unop.as_ptr()),
-                        false))
-                },
-                &BinaryExpr(ref name, ref lhs, ref rhs) => {
-
-                    if name.as_slice() == "=" {
-                        let var_name = match **lhs {
-                            VariableExpr(ref nm) => nm,
-                            _ => return error("destination of '=' must be a variable")
-                        };
-
-                        let (value, _) = try!(rhs.codegen(context));
-                        let variable = match context.named_values.get(var_name) {
-                            Some(vl) => *vl,
-                            None => return error("unknown variable name")
-                        };
-                        llvm::LLVMBuildStore(context.builder, value, variable);
-
-                        return Ok((value, false))
-                    }
-
-                    let (lhs_value, _) = try!(lhs.codegen(context));
-                    let (rhs_value, _) = try!(rhs.codegen(context));
-
-                    let c_addtmp = CString::from_slice("addtmp".as_bytes());
-                    let c_subtmp = CString::from_slice("subtmp".as_bytes());
-                    let c_multmp = CString::from_slice("multmp".as_bytes());
-                    let c_cmptmp = CString::from_slice("cmptmp".as_bytes());
-                    let c_booltmp = CString::from_slice("booltmp".as_bytes());
-
-                    match name.as_slice() {
-                        "+" => Ok((llvm::LLVMBuildFAdd(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       c_addtmp.as_ptr()),
-                                   false)),
-                        "-" => Ok((llvm::LLVMBuildFSub(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       c_subtmp.as_ptr()),
-                                   false)),
-                        "*" => Ok((llvm::LLVMBuildFMul(context.builder,
-                                                    lhs_value,
-                                                    rhs_value,
-                                                    c_multmp.as_ptr()),
-                                false)),
-                        "<" => {
-                            let cmp = llvm::LLVMBuildFCmp(context.builder,
-                                                          llvm::RealOLT as c_uint,
-                                                          lhs_value,
-                                                          rhs_value,
-                                                          c_cmptmp.as_ptr());
-                            let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                            // convert boolean to double 0.0 or 1.0
-                            Ok((llvm::LLVMBuildUIToFP(context.builder,
-                                                      cmp,
-                                                      ty,
-                                                      c_booltmp.as_ptr()),
-                                false))
-                        },
-                        op => {
-                            let name = "binary".to_string() + op;
-                            let c_name = CString::from_slice(name.as_bytes());
-                            let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
-                            if function.is_null() {
-                                return error("binary operator not found")
-                            }
-
-                            let args_value = vec![lhs_value, rhs_value];
-
-                            let c_binop = CString::from_slice("binop".as_bytes());
-                            Ok((llvm::LLVMBuildCall(context.builder,
-                                                    function,
-                                                    args_value.as_ptr(),
-                                                    args_value.len() as c_uint,
-                                                    c_binop.as_ptr()),
-                                false))
-                        }
-                    }
-                },
-                &CallExpr(ref name, ref args) => {
-                    let c_name = CString::from_slice(name.as_bytes());
-                    let function = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
-                    if function.is_null() {
-                        return error("unknown function referenced")
-                    }
-                    if llvm::LLVMCountParams(function) as uint != args.len() {
-                        return error("incorrect number of arguments passed")
-                    }
-                    let mut args_value = Vec::new();
-                    for arg in args.iter() {
-                        let (arg_value, _) = try!(arg.codegen(context));
-                        args_value.push(arg_value);
-                    }
-
-                    let c_calltmp = CString::from_slice("calltmp".as_bytes());
-                    Ok((llvm::LLVMBuildCall(context.builder,
-                                            function,
-                                            args_value.as_ptr(),
-                                            args_value.len() as c_uint,
-                                            c_calltmp.as_ptr()),
-                        false))
-                },
-                &ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-
-                    let (cond_value, _) = try!(cond_expr.codegen(context));
-
-                    let zero = llvm::LLVMConstReal(ty, 0.0);
-
-                    let c_ifcond = CString::from_slice("ifcond".as_bytes());
-                    let ifcond = llvm::LLVMBuildFCmp(context.builder,
-                                                     llvm::RealONE as c_uint,
-                                                     cond_value,
-                                                     zero,
-                                                     c_ifcond.as_ptr());
-
-                    let block = llvm::LLVMGetInsertBlock(context.builder);
-
-                    let function = llvm::LLVMGetBasicBlockParent(block);
-
-                    let c_then = CString::from_slice("then".as_bytes());
-                    let c_else = CString::from_slice("else".as_bytes());
-                    let c_ifcont = CString::from_slice("ifcont".as_bytes());
-                    let then_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_then.as_ptr());
-                    let else_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_else.as_ptr());
-                    let merge_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_ifcont.as_ptr());
-
-                    llvm::LLVMBuildCondBr(context.builder, ifcond, then_block, else_block);
-
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, then_block);
-                    let (then_value, _) = try!(then_expr.codegen(context));
-
-                    llvm::LLVMBuildBr(context.builder, merge_block);
-                    let then_end_block = llvm::LLVMGetInsertBlock(context.builder);
-
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, else_block);
-                    let (else_value, _) = try!(else_expr.codegen(context));
-                    llvm:: LLVMBuildBr(context.builder, merge_block);
-                    let else_end_block = llvm::LLVMGetInsertBlock(context.builder);
-
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, merge_block);
-                    let c_ifphi = CString::from_slice("ifphi".as_bytes());
-                    let phi = llvm::LLVMBuildPhi(context.builder, ty, c_ifphi.as_ptr());
-                    llvm::LLVMAddIncoming(phi, &then_value, &then_end_block, 1);
-                    llvm::LLVMAddIncoming(phi, &else_value, &else_end_block, 1);
-
-                    Ok((phi, false))
-                },
-                &LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
-                    let (start_value, _) = try!(start_expr.codegen(context));
-
-                    let preheader_block = llvm::LLVMGetInsertBlock(context.builder);
-                    let function = llvm::LLVMGetBasicBlockParent(preheader_block);
-
-                    let variable = create_entry_block_alloca(context, function, var_name.clone());
-                    llvm::LLVMBuildStore(context.builder, start_value, variable);
-                    let old_value = context.named_values.remove(var_name);
-                    context.named_values.insert(var_name.clone(), variable);
-
-                    let c_preloop = CString::from_slice("preloop".as_bytes());
-                    let preloop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_preloop.as_ptr());
-                    llvm::LLVMBuildBr(context.builder, preloop_block);
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, preloop_block);
-
-                    let (end_value, _) = try!(end_expr.codegen(context));
-
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let zero = llvm::LLVMConstReal(ty, 0.0);
-
-                    let c_loopcond = CString::from_slice("loopcond".as_bytes());
-                    let end_cond = llvm::LLVMBuildFCmp(context.builder,
-                                                       llvm::RealONE as c_uint,
-                                                       end_value,
-                                                       zero,
-                                                       c_loopcond.as_ptr());
-
-                    let c_afterloop = CString::from_slice("afterloop".as_bytes());
-                    let c_loop = CString::from_slice("loop".as_bytes());
-                    let after_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_afterloop.as_ptr());
-                    let loop_block = llvm::LLVMAppendBasicBlockInContext(context.context, function, c_loop.as_ptr());
-
-                    llvm::LLVMBuildCondBr(context.builder, end_cond, loop_block, after_block);
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, loop_block);
-
-                    try!(body_expr.codegen(context));
-
-                    let (step_value, _) = try!(step_expr.codegen(context));
-                    let c_var_name = CString::from_slice(var_name.as_bytes());
-                    let c_nextvar = CString::from_slice("nextvar".as_bytes());
-                    let cur_value = llvm::LLVMBuildLoad(context.builder,
-                                                        variable,
-                                                        c_var_name.as_ptr());
-                    let next_value = llvm::LLVMBuildFAdd(context.builder,
-                                                         cur_value,
-                                                         step_value,
-                                                         c_nextvar.as_ptr());
-                    llvm::LLVMBuildStore(context.builder, next_value, variable);
-
-                    llvm::LLVMBuildBr(context.builder, preloop_block);
-
-                    llvm::LLVMPositionBuilderAtEnd(context.builder, after_block);
-
-                    context.named_values.remove(var_name);
-                    match old_value {
-                        Some(value) => {context.named_values.insert(var_name.clone(), value);},
-                        None => ()
-                    };
-
-                    Ok((zero, false))
-                },
-                &VarExpr{ref vars, ref body_expr} => {
-                    let mut old_bindings = Vec::new();
-                    let function = llvm::LLVMGetBasicBlockParent(llvm::LLVMGetInsertBlock(context.builder));
-                    for var in vars.iter() {
-                        let (ref name, ref init_expr) = *var;
-                        let (init_value, _) = try!(init_expr.codegen(context));
-                        let variable = create_entry_block_alloca(context, function, name.clone());
-                        llvm::LLVMBuildStore(context.builder, init_value, variable);
-                        old_bindings.push(context.named_values.remove(name));
-                        context.named_values.insert(name.clone(), variable);
-                    }
-
-                    let (body_value, _) = try!(body_expr.codegen(context));
-
-                    let mut old_iter = old_bindings.iter();
-                    for var in vars.iter() {
-                        let (ref name, _) = *var;
-                        context.named_values.remove(name);
-
-                        match old_iter.next() {
-                            Some(&Some(value)) => {context.named_values.insert(name.clone(), value);},
-                            _ => ()
-                        };
-                    }
-
-                    Ok((body_value, false))
-                }
-            }
-        }
-    }
-}
-
-impl IRBuilder for Prototype {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
-        unsafe {
-            // check if declaration with this name was already done
-            let c_name = CString::from_slice(self.name.as_bytes());
-            let prev_definition = llvm::LLVMGetNamedFunction(context.module, c_name.as_ptr());
-
-            let function =
-                if !prev_definition.is_null() {
-                    // we do not allow to redeclare functions with
-                    // other signatures
-                    if llvm::LLVMCountParams(prev_definition) as uint != self.args.len() {
-                        return error("redefinition of function with different number of args")
-                    }
-                    // we do not allow to redefine/redeclare already
-                    // defined functions (those that have the body)
-                    if llvm::LLVMCountBasicBlocks(prev_definition) != 0 {
-                        return error("redefinition of function");
-                    }
-
-                    prev_definition
-
-                } else {
-                    // function type if defined by number and types of
-                    // the arguments
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let param_types = iter::repeat(ty).take(self.args.len()).collect::<Vec<_>>();
-                    let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
-
-                    llvm::LLVMAddFunction(context.module,
-                                          c_name.as_ptr(),
-                                          fty)
-                };
-
-            // set correct parameters names
-            let mut param = llvm::LLVMGetFirstParam(function);
-            for arg in self.args.iter() {
-                let c_arg = CString::from_slice(arg.as_bytes());
-                llvm::LLVMSetValueName(param, c_arg.as_ptr());
-                param = llvm::LLVMGetNextParam(param);
-            }
-
-            Ok((function, false))
-        }
-    }
-}
-
-impl IRBuilder for Function {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
-        // we have no global variables, so we can clear all the
-        // previously defined named values as they come from other functions
-        context.named_values.clear();
-
-        let (function, _) = try!(self.prototype.codegen(context));
-
-        unsafe {
-            // basic block that will contain generated instructions
-            let c_entry = CString::from_slice("entry".as_bytes());
-            let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
-                                                                  function,
-                                                                  c_entry.as_ptr());
-            llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
-
-            // set function parameters
-            let mut param = llvm::LLVMGetFirstParam(function);
-            for arg in self.prototype.args.iter() {
-                let arg_alloca = create_entry_block_alloca(context, function, arg.clone());
-                llvm::LLVMBuildStore(context.builder, param, arg_alloca);
-                context.named_values.insert(arg.clone(), arg_alloca);
-                param = llvm::LLVMGetNextParam(param);
-            }
-
-            // emit function body
-            // if error uccured, remove the function, so user can
-            // redefine it
-            let body = match self.body.codegen(context) {
-                Ok((value, _)) => value,
-                Err(message) => {
-                    llvm::LLVMDeleteFunction(function);
-                    return Err(message);
-                }
-            };
-
-            // the last instruction should be return
-            llvm::LLVMBuildRet(context.builder, body);
-            llvm::LLVMRunFunctionPassManager(context.function_passmanager, function);
-        }
-
-        // clear local variables
-        context.named_values.clear();
-        Ok((function, self.prototype.name.as_slice() == ""))
-    }
-}
-
-impl IRBuilder for ASTNode {
+impl IRBuilder for parser::ParsingResult {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         match self {
-            &ExternNode(ref prototype) => prototype.codegen(context),
-            &FunctionNode(ref function) => function.codegen(context)
+            &Ok((ref ast, _)) => ast.codegen(context),
+            &Err(ref message) => Err(message.clone())
         }
     }
 }
 
-impl IRBuilder for Vec<ASTNode> {
+impl IRBuilder for Vec<parser::ASTNode> {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         let mut result = error("empty AST");
         for node in self.iter() {
@@ -530,11 +131,337 @@ impl IRBuilder for Vec<ASTNode> {
     }
 }
 
-impl IRBuilder for ParsingResult {
+impl IRBuilder for parser::ASTNode {
     fn codegen(&self, context: &mut Context) -> IRBuildingResult {
         match self {
-            &Ok((ref ast, _)) => ast.codegen(context),
-            &Err(ref message) => Err(message.clone())
+            &parser::ExternNode(ref prototype) => prototype.codegen(context),
+            &parser::FunctionNode(ref function) => function.codegen(context)
+        }
+    }
+}
+
+impl IRBuilder for parser::Prototype {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        // check if declaration with this name was already done
+        let function = match context.module.get_function_by_name(&self.name) {
+            Some(prev_definition) => {
+                // we do not allow to redeclare functions with
+                // other signatures
+                if prev_definition.count_params() as usize != self.args.len() {
+                    return error("redefinition of function with different number of args")
+                }
+
+                // we do not allow to redefine/redeclare already
+                // defined functions (those that have the body)
+                if prev_definition.count_basic_blocks() != 0 {
+                    return error("redefinition of function");
+                }
+
+                prev_definition
+            },
+            None => {
+                // function type is defined by number and types of
+                // the arguments
+                let mut param_types = iter::repeat(context.ty.to_ref()).take(self.args.len()).collect::<Vec<_>>();
+                let fty = FunctionTypeRef::get(&context.ty, param_types.as_mut_slice(), false);
+                FunctionRef::new(&mut context.module, &self.name, &fty)
+            }
+        };
+
+        // set correct parameters names
+        for (param, arg) in function.params_iter().zip(&self.args) {
+            param.set_name(arg);
+        }
+
+        Ok((function.to_ref(), false))
+    }
+}
+
+impl IRBuilder for parser::Function {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        // we have no global variables, so we can clear all the
+        // previously defined named values as they come from other functions
+        context.named_values.clear();
+
+        let (function, _) = try!(self.prototype.codegen(context));
+        let function = unsafe {FunctionRef::from_ref(function)};
+
+        // basic block that will contain generated instructions
+        let mut bb = function.append_basic_block_in_context(&mut context.context, "entry");
+        context.builder.position_at_end(&mut bb);
+
+        // set function parameters
+        for (param, arg) in function.params_iter().zip(&self.prototype.args) {
+            let arg_alloca = create_entry_block_alloca(context, &function, arg);
+            context.builder.build_store(param.to_ref(), arg_alloca);
+            context.named_values.insert(arg.clone(), arg_alloca);
+        }
+
+        // emit function body
+        // if error occured, remove the function, so user can
+        // redefine it
+        let body = match self.body.codegen(context) {
+            Ok((value, _)) => value,
+            Err(message) => {
+                unsafe {LLVMDeleteFunction(function.to_ref())};
+                return Err(message);
+            }
+        };
+
+        // the last instruction should be return
+        context.builder.build_ret(&body);
+
+        //llvm::LLVMRunFunctionPassManager(context.function_passmanager, function);
+
+        // clear local variables
+        context.named_values.clear();
+        Ok((function.to_ref(), self.prototype.name.as_str() == ""))
+    }
+}
+
+fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
+    let mut builder = core::Builder::new();
+    let mut bb = function.get_entry();
+    let fi = bb.get_first_instruction();
+    builder.position(&mut bb, &fi);
+    builder.build_alloca(context.ty.to_ref(), var_name)
+}
+
+
+impl IRBuilder for parser::Expression {
+    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+        match self {
+
+
+            &parser::LiteralExpr(ref value) => {
+                Ok((RealConstRef::get(&context.ty, *value).to_ref(), false))
+            },
+
+
+            &parser::VariableExpr(ref name) => {
+                match context.named_values.get(name) {
+                    Some(value) => {
+                        let var = context.builder.build_load(*value, name);
+                        Ok((var, false))
+                    },
+                    None => error("unknown variable name")
+                }
+            },
+
+
+            &parser::UnaryExpr(ref operator, ref operand) => {
+                let (operand, _) = try!(operand.codegen(context));
+
+                let name = "unary".to_string() + operator;
+                let function = match context.module.get_function_by_name(name.as_str()) {
+                    Some(function) => function,
+                    None => return error("unary operator not found")
+                };
+
+                let mut args_value = vec![operand];
+
+                Ok((context.builder.build_call(function.to_ref(),
+                                                args_value.as_mut_slice(),
+                                                "unop"),
+                    false))
+            },
+
+
+            &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
+
+                if name.as_str() == "=" {
+                    let var_name = match **lhs {
+                        parser::VariableExpr(ref nm) => nm,
+                        _ => return error("destination of '=' must be a variable")
+                    };
+
+                    let (value, _) = try!(rhs.codegen(context));
+
+                    let variable = match context.named_values.get(var_name) {
+                        Some(vl) => *vl,
+                        None => return error("unknown variable name")
+                    };
+
+                    context.builder.build_store(value, variable);
+
+                    return Ok((value, false))
+                }
+
+                let (lhs_value, _) = try!(lhs.codegen(context));
+                let (rhs_value, _) = try!(rhs.codegen(context));
+
+                match name.as_str() {
+                    "+" => Ok((context.builder.build_fadd(lhs_value,
+                                                          rhs_value,
+                                                          "addtmp"),
+                               false)),
+                    "-" => Ok((context.builder.build_fsub(lhs_value,
+                                                          rhs_value,
+                                                          "subtmp"),
+                               false)),
+                    "*" => Ok((context.builder.build_fmul(lhs_value,
+                                                          rhs_value,
+                                                          "multmp"),
+                               false)),
+                    "<" => {
+                        let cmp = context.builder.build_fcmp(LLVMRealOLT,
+                                                             lhs_value,
+                                                             rhs_value,
+                                                             "cmptmp");
+
+                        // convert boolean to double 0.0 or 1.0
+                        Ok((context.builder.build_ui_to_fp(cmp,
+                                                           context.ty.to_ref(),
+                                                           "booltmp"),
+                            false))
+                    },
+                    op => {
+                        let name = "binary".to_string() + op;
+
+                        let function = match context.module.get_function_by_name(&name) {
+                            Some(function) => function,
+                            None => return error("binary operator not found")
+                        };
+
+                        let mut args_value = vec![lhs_value, rhs_value];
+
+                        Ok((context.builder.build_call(function.to_ref(),
+                                                       args_value.as_mut_slice(),
+                                                       "binop"),
+                            false))
+                    }
+                }
+            },
+
+
+            &parser::CallExpr(ref name, ref args) => {
+                let function = match context.module.get_function_by_name(name) {
+                    Some(function) => function,
+                    None => return error("unknown function referenced")
+                };
+
+                if function.count_params() as usize != args.len() {
+                    return error("incorrect number of arguments passed")
+                }
+
+                let mut args_value = Vec::new();
+                for arg in args.iter() {
+                    let (arg_value, _) = try!(arg.codegen(context));
+                    args_value.push(arg_value);
+                }
+
+                Ok((context.builder.build_call(function.to_ref(),
+                                               args_value.as_mut_slice(),
+                                               "calltmp"),
+                    false))
+            },
+
+
+            &parser::ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
+                let (cond_value, _) = try!(cond_expr.codegen(context));
+                let zero = RealConstRef::get(&context.ty, 0.0);
+                let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
+
+                let block = context.builder.get_insert_block();
+                let function = block.get_parent();
+                let mut then_block = function.append_basic_block_in_context(&mut context.context, "then");
+                let mut else_block = function.append_basic_block_in_context(&mut context.context, "else");
+                let mut merge_block = function.append_basic_block_in_context(&mut context.context, "ifcont");
+                context.builder.build_cond_br(ifcond, &then_block, &else_block);
+
+                context.builder.position_at_end(&mut then_block);
+                let (then_value, _) = try!(then_expr.codegen(context));
+                context.builder.build_br(&merge_block);
+                let then_end_block = context.builder.get_insert_block();
+
+                context.builder.position_at_end(&mut else_block);
+                let (else_value, _) = try!(else_expr.codegen(context));
+                context.builder.build_br(&merge_block);
+                let else_end_block = context.builder.get_insert_block();
+
+                context.builder.position_at_end(&mut merge_block);
+                let mut phi = unsafe {
+                    PHINodeRef::from_ref(context.builder.build_phi(context.ty.to_ref(), "ifphi"))
+                };
+                phi.add_incoming(vec![then_value].as_mut_slice(), vec![then_end_block].as_mut_slice());
+                phi.add_incoming(vec![else_value].as_mut_slice(), vec![else_end_block].as_mut_slice());
+
+                Ok((phi.to_ref(), false))
+            },
+
+
+            &parser::LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
+                let (start_value, _) = try!(start_expr.codegen(context));
+
+                let preheader_block = context.builder.get_insert_block();
+                let function = preheader_block.get_parent();
+
+                let variable = create_entry_block_alloca(context, &function, var_name);
+                context.builder.build_store(start_value, variable);
+                let old_value = context.named_values.remove(var_name);
+                context.named_values.insert(var_name.clone(), variable);
+
+                let mut preloop_block = function.append_basic_block_in_context(&mut context.context, "preloop");
+                context.builder.build_br(&preloop_block);
+                context.builder.position_at_end(&mut preloop_block);
+                let (end_value, _) = try!(end_expr.codegen(context));
+                let zero = RealConstRef::get(&context.ty, 0.0);
+                let end_cond = context.builder.build_fcmp(LLVMRealONE, end_value, zero.to_ref(), "loopcond");
+
+                let mut after_block = function.append_basic_block_in_context(&mut context.context, "afterloop");
+                let mut loop_block = function.append_basic_block_in_context(&mut context.context, "loop");
+
+                context.builder.build_cond_br(end_cond, &loop_block, &after_block);
+
+                context.builder.position_at_end(&mut loop_block);
+                try!(body_expr.codegen(context));
+
+                let (step_value, _) = try!(step_expr.codegen(context));
+                let cur_value = context.builder.build_load(variable, var_name);
+                let next_value = context.builder.build_fadd(cur_value, step_value, "nextvar");
+                context.builder.build_store(next_value, variable);
+
+                context.builder.build_br(&preloop_block);
+
+                context.builder.position_at_end(&mut after_block);
+
+                context.named_values.remove(var_name);
+                match old_value {
+                    Some(value) => {context.named_values.insert(var_name.clone(), value);},
+                    None => ()
+                };
+
+                Ok((zero.to_ref(), false))
+            },
+
+
+            &parser::VarExpr{ref vars, ref body_expr} => {
+                let mut old_bindings = Vec::new();
+                let function = context.builder.get_insert_block().get_parent();
+                for var in vars.iter() {
+                    let (ref name, ref init_expr) = *var;
+                    let (init_value, _) = try!(init_expr.codegen(context));
+                    let variable = create_entry_block_alloca(context, &function, name);
+                    context.builder.build_store(init_value, variable);
+                    old_bindings.push(context.named_values.remove(name));
+                    context.named_values.insert(name.clone(), variable);
+                }
+
+                let (body_value, _) = try!(body_expr.codegen(context));
+
+                let mut old_iter = old_bindings.iter();
+                for var in vars.iter() {
+                    let (ref name, _) = *var;
+                    context.named_values.remove(name);
+
+                    match old_iter.next() {
+                        Some(&Some(value)) => {context.named_values.insert(name.clone(), value);},
+                        _ => ()
+                    };
+                }
+
+                Ok((body_value, false))
+            }
         }
     }
 }

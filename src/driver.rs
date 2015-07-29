@@ -1,7 +1,11 @@
 use std::io;
 use std::io::Write;
 
-//use builder::*;
+use iron_llvm::core::value::Value;
+
+use builder;
+use builder::IRBuilder;
+
 use lexer::*;
 use parser::*;
 
@@ -31,7 +35,7 @@ pub fn main_loop(stage: Stage) {
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
 //> parser-driver
-    //let mut context = Context::new("main");
+    let mut context = builder::Context::new("main");
 //< parser-driver
 
     'main: loop {
@@ -84,21 +88,22 @@ pub fn main_loop(stage: Stage) {
         }
 //> parser-driver
 
-        /*match ast.codegen(&mut context) {
-            Ok((value, runnable)) => if runnable && stage == Exec {
+        match ast.codegen(&mut context) {
+            Ok((value, _ /*runnable*/)) =>
+                /* if runnable && stage == Exec {
                 println!("=> {}", run(value, &context))
-            } else {
-                dump_value(value)
-            },
+                } else { */
+                value.dump(),
+                //},
             Err(message) => println!("Error occured: {}", message)
-        }*/
+        }
 //< parser-driver
     }
 //> parser-driver
 
-    /*if stage == IR || stage == Exec {
+    if stage == IR || stage == Exec {
         context.dump();
-    }*/
+    }
 //< parser-driver
 }
 //> parser-driver

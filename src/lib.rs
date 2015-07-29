@@ -7,9 +7,11 @@
 
 extern crate libc;
 extern crate regex;
-//extern crate rustc;
 
-//pub mod builder;
+extern crate iron_llvm;
+extern crate llvm_sys;
+
+pub mod builder;
 pub mod driver;
 pub mod lexer;
 //pub mod missing_llvm_bindings;

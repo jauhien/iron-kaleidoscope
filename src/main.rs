@@ -30,14 +30,19 @@ fn main() {
         IR
 //< parser-main
     } else {
+//>parser-main
+/*
+//< parser-main
         AST
 //> parser-main
+*/
+        IR
         //Exec
 //< parser-main
     };
 //> parser-main
 
-    if stage == IR || stage == Exec {
+    if stage == Exec {
         panic!("Not implemented");
     } else {
 //< parser-main
