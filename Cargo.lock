@@ -45,7 +45,7 @@ dependencies = [
 [[package]]
 name = "iron_llvm"
 version = "0.0.1"
-source = "git+https://github.com/jauhien/iron-llvm.git#69880c83d6224dcf6f60331a023e6a7b70981c92"
+source = "git+https://github.com/jauhien/iron-llvm.git#0e757559f0535beed12dcda43fdc593d6cf05f3d"
 dependencies = [
  "llvm_sys 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

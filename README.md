@@ -1,4 +1,4 @@
-# UPDATE: Make lexer and parser compile and work with the latest nightly Rust. IR generation without function passes works as well. Other stuff is disabled.
+# UPDATE: Make lexer, parser and IR generation compile and work with the latest nightly Rust. Other stuff is disabled.
 
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 

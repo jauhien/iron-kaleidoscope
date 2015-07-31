@@ -19,7 +19,7 @@ pub struct Context {
     module: core::Module,
     builder: core::Builder,
 //  exec_engine: llvm::ExecutionEngineRef,
-//  function_passmanager: llvm::PassManagerRef,
+    function_passmanager: core::FunctionPassManager,
     named_values: HashMap<String, LLVMValueRef>,
     ty: RealTypeRef
 }
@@ -73,30 +73,29 @@ impl Context {
         let mut error = 0 as *const c_char;
         LLVMCreateExecutionEngineForModule(&mut exec_engine, module, &mut error);
         assert!(exec_engine != 0 as llvm::ExecutionEngineRef);
-
-        let function_passmanager = llvm::LLVMCreateFunctionPassManagerForModule(module);
-
+*/
+        let mut function_passmanager = core::FunctionPassManager::new(&module);
+/*
         let target_data = LLVMGetExecutionEngineTargetData(exec_engine);
         let data_layout = LLVMCopyStringRepOfTargetData(target_data);
         llvm::LLVMSetDataLayout(module, data_layout);
         llvm::LLVMAddTargetData(target_data, function_passmanager);
         LLVMDisposeMessage(data_layout);
-
-        llvm::LLVMAddVerifierPass(function_passmanager);
-        LLVMAddPromoteMemoryToRegisterPass(function_passmanager);
-        llvm::LLVMAddBasicAliasAnalysisPass(function_passmanager);
-        llvm::LLVMAddInstructionCombiningPass(function_passmanager);
-        llvm::LLVMAddReassociatePass(function_passmanager);
-        llvm::LLVMAddGVNPass(function_passmanager);
-        llvm::LLVMAddCFGSimplificationPass(function_passmanager);
-        llvm::LLVMInitializeFunctionPassManager(function_passmanager);
 */
+        function_passmanager.add_verifier_pass();
+        function_passmanager.add_promote_memory_to_register_pass();
+        function_passmanager.add_basic_alias_analysis_pass();
+        function_passmanager.add_instruction_combining_pass();
+        function_passmanager.add_reassociate_pass();
+        function_passmanager.add_GVN_pass();
+        function_passmanager.add_CFG_simplification_pass();
+        function_passmanager.initialize();
 
         Context { context: context,
                   module: module,
                   builder: builder,
 //                exec_engine: exec_engine,
-//                function_passmanager:function_passmanager,
+                  function_passmanager: function_passmanager,
                   named_values: named_values,
                   ty: ty
         }
@@ -184,7 +183,7 @@ impl IRBuilder for parser::Function {
         context.named_values.clear();
 
         let (function, _) = try!(self.prototype.codegen(context));
-        let function = unsafe {FunctionRef::from_ref(function)};
+        let mut function = unsafe {FunctionRef::from_ref(function)};
 
         // basic block that will contain generated instructions
         let mut bb = function.append_basic_block_in_context(&mut context.context, "entry");
@@ -211,7 +210,7 @@ impl IRBuilder for parser::Function {
         // the last instruction should be return
         context.builder.build_ret(&body);
 
-        //llvm::LLVMRunFunctionPassManager(context.function_passmanager, function);
+        context.function_passmanager.run(&mut function);
 
         // clear local variables
         context.named_values.clear();
