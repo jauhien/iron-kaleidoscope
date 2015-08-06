@@ -37,7 +37,9 @@ pub fn main_loop(stage: Stage) {
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
 //> parser-driver
-    let mut context = builder::Context::new("main");
+    let mut mcjitter = jitter::MCJITter::new();
+    let mut builder_context = builder::Context::new();
+    let mut jitter_context = jitter::Context::new("main");
 
     if stage == Exec {
         target::initilalize_native_target();
@@ -95,12 +97,12 @@ pub fn main_loop(stage: Stage) {
         }
 //> parser-driver
 
-        match ast.codegen(&mut context) {
+        match ast.codegen(&mut builder_context, &mut jitter_context) {
             Ok((value, runnable)) =>
                 if runnable && stage == Exec {
-                    let mut mcjitter = jitter::MCJITter::new(context);
-                    context = builder::Context::new("main");
+                    mcjitter.add(jitter_context);
                     println!("=> {}", mcjitter.run_function(value));
+                    jitter_context = jitter::Context::new("main");
                 } else {
                     value.dump();
                 },
@@ -110,8 +112,10 @@ pub fn main_loop(stage: Stage) {
     }
 //> parser-driver
 
-    if stage == IR || stage == Exec {
-        context.dump();
+    if stage == IR {
+        jitter_context.get_module().dump();
+    } else if stage == Exec {
+        mcjitter.dump();
     }
 //< parser-driver
 }
