@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 use std::iter;
 
+use llvm_sys::LLVMRealPredicate::{LLVMRealOLT, LLVMRealONE};
+use llvm_sys::core::LLVMDeleteFunction;
+use llvm_sys::prelude::LLVMValueRef;
+
 use iron_llvm::core;
 use iron_llvm::core::basic_block::{BasicBlock};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value, RealConstRef, RealConstCtor};
 use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef, RealTypeCtor, RealTypeRef};
 use iron_llvm::{LLVMRef, LLVMRefCtor};
-
-use llvm_sys::LLVMRealPredicate::{LLVMRealOLT, LLVMRealONE};
-use llvm_sys::core::LLVMDeleteFunction;
-use llvm_sys::prelude::LLVMValueRef;
 
 use parser;
 
@@ -99,6 +99,10 @@ impl Context {
                   named_values: named_values,
                   ty: ty
         }
+    }
+
+    pub fn get_module(self) -> core::Module {
+        self.module
     }
 
     pub fn dump(&self) {

@@ -36,21 +36,11 @@ fn main() {
         AST
 //> parser-main
 */
-        IR
-        //Exec
+        //IR
+        Exec
 //< parser-main
     };
-//> parser-main
-
-    if stage == Exec {
-        panic!("Not implemented");
-    } else {
-//< parser-main
 
     main_loop(stage);
-//> parser-main
-    }
-
-//< parser-main
 }
 //> parser-main

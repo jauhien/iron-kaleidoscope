@@ -2,10 +2,12 @@ use std::io;
 use std::io::Write;
 
 use iron_llvm::core::value::Value;
+use iron_llvm::target;
 
 use builder;
 use builder::IRBuilder;
 
+use jitter;
 use lexer::*;
 use parser::*;
 
@@ -36,6 +38,11 @@ pub fn main_loop(stage: Stage) {
     let mut parser_settings = default_parser_settings();
 //> parser-driver
     let mut context = builder::Context::new("main");
+
+    if stage == Exec {
+        target::initilalize_native_target();
+        target::initilalize_native_asm_printer();
+    }
 //< parser-driver
 
     'main: loop {
@@ -89,12 +96,14 @@ pub fn main_loop(stage: Stage) {
 //> parser-driver
 
         match ast.codegen(&mut context) {
-            Ok((value, _ /*runnable*/)) =>
-                /* if runnable && stage == Exec {
-                println!("=> {}", run(value, &context))
-                } else { */
-                value.dump(),
-                //},
+            Ok((value, runnable)) =>
+                if runnable && stage == Exec {
+                    let mut mcjitter = jitter::MCJITter::new(context);
+                    context = builder::Context::new("main");
+                    println!("=> {}", mcjitter.run_function(value));
+                } else {
+                    value.dump();
+                },
             Err(message) => println!("Error occured: {}", message)
         }
 //< parser-driver

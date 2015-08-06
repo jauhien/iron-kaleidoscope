@@ -13,6 +13,6 @@ extern crate llvm_sys;
 
 pub mod builder;
 pub mod driver;
+pub mod jitter;
 pub mod lexer;
-//pub mod missing_llvm_bindings;
 pub mod parser;
