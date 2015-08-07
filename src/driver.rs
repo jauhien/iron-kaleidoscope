@@ -116,6 +116,7 @@ pub fn main_loop(stage: Stage) {
         jitter_context.get_module().dump();
     } else if stage == Exec {
         mcjitter.dump();
+        jitter_context.get_module().dump();
     }
 //< parser-driver
 }
