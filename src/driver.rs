@@ -32,7 +32,7 @@ pub enum Stage {
 
 //< parser-driver
 pub fn main_loop(stage: Stage) {
-    let mut stdin = io::stdin();
+    let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
