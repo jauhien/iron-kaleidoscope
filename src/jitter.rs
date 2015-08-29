@@ -1,4 +1,6 @@
 use std;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use llvm_sys::prelude::LLVMValueRef;
 
@@ -6,16 +8,33 @@ use iron_llvm::{LLVMRef, LLVMRefCtor};
 use iron_llvm::core;
 use iron_llvm::core::types::{FunctionType, FunctionTypeRef, RealTypeCtor, RealTypeRef};
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value};
-use iron_llvm::execution_engine::ExecutionEngine;
+use iron_llvm::execution_engine::{BindingSectionMemoryManagerBuilder, ExecutionEngine, MCJITBuilder};
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
+
+struct ModulesContainer {
+    execution_engines: Vec<ExecutionEngine>,
+    modules: Vec<FrozenModule>
+}
+
+impl ModulesContainer {
+    fn get_function_address(&self, name: &str) -> u64 {
+        for ee in &self.execution_engines {
+            let addr = ee.get_function_address(name);
+            if addr != 0 {
+                return addr;
+            }
+        }
+
+        0
+    }
+}
 
 pub struct MCJITter {
     module_name: String,
     current_module: core::Module,
     function_passmanager: core::FunctionPassManager,
 
-    execution_engines: Vec<ExecutionEngine>,
-    modules: Vec<FrozenModule>
+    container: Rc<RefCell<ModulesContainer>>
 }
 
 impl MCJITter {
@@ -41,8 +60,11 @@ impl MCJITter {
             module_name: String::from(name),
             current_module: current_module,
             function_passmanager: function_passmanager,
-            execution_engines: vec![],
-            modules: vec![]
+
+            container: Rc::new(RefCell::new(ModulesContainer {
+                execution_engines: vec![],
+                modules: vec![]
+            }))
         }
     }
 
@@ -51,7 +73,7 @@ impl MCJITter {
     }
 
     pub fn get_function(&mut self, name: &str) -> Result<FunctionRef, String> {
-        for ee in &self.execution_engines {
+        for ee in &self.container.borrow().execution_engines {
             let funct = match ee.find_function(name) {
                 Some(f) => {
                     f
@@ -87,23 +109,40 @@ impl MCJITter {
         &mut self.function_passmanager
     }
 
-    pub fn close_current_module(&mut self) {
+    pub fn close_current_module(& mut self) {
         let (new_module, new_function_passmanager) = MCJITter::new_module(&self.module_name);
         self.function_passmanager = new_function_passmanager;
         let current_module = std::mem::replace(&mut self.current_module, new_module);
-        let (execution_engine, module) = match ExecutionEngine::new_jit_compiler(current_module, 0) {
-            Ok((ee, module)) => (ee, module),
-            Err(msg) => panic!(msg)
-        };
 
-        self.execution_engines.push(execution_engine);
-        self.modules.push(module);
+        let container = self.container.clone();
+        let mm_builder = BindingSectionMemoryManagerBuilder::new();
+        let memory_manager = mm_builder
+            .set_get_symbol_address(move |mut parent_mm, name| {
+                let addr = parent_mm.get_symbol_address(name);
+                if addr != 0 {
+                    return addr;
+                }
+
+                container.borrow().get_function_address(name)
+            })
+            .create();
+
+        let ee_builder = MCJITBuilder::new();
+        let (execution_engine, module) = match ee_builder
+            .set_mcjit_memory_manager(Box::new(memory_manager))
+            .create(current_module) {
+                Ok((ee, module)) => (ee, module),
+                Err(msg) => panic!(msg)
+            };
+
+        self.container.borrow_mut().execution_engines.push(execution_engine);
+        self.container.borrow_mut().modules.push(module);
     }
 
     pub fn run_function(&mut self, f: LLVMValueRef) -> f64 {
         let f = unsafe {FunctionRef::from_ref(f)};
         let mut args = vec![];
-        let res = match self.execution_engines.last_mut() {
+        let res = match self.container.borrow().execution_engines.last() {
             Some(ee) => ee.run_function(&f, args.as_mut_slice()),
             None => panic!("MCJITter went crazy")
         };
@@ -112,7 +151,7 @@ impl MCJITter {
     }
 
     pub fn dump(&self) {
-        for module in self.modules.iter() {
+        for module in self.container.borrow().modules.iter() {
             module.get().dump()
         }
     }

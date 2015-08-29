@@ -1,4 +1,5 @@
-# UPDATE: Make lexer, parser and IR generation compile and work with the latest nightly Rust. Other stuff is disabled.
+**UPDATE**: Make lexer, parser, IR generation and simple JIT compiler work.
+It means code is near fully corresponds to the original tutorial now (only "built-in" functions left to be reimplemented).
 
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
