@@ -1,5 +1,18 @@
-**UPDATE**: Make lexer, parser, IR generation and simple JIT compiler work.
-It means code is near fully corresponds to the original tutorial now (only "built-in" functions left to be reimplemented).
+# Status
+
+Everything works. State corresponds to the Chapter 7 of the original tutorial
+(i.e. mutable variables implemented).
+
+# TODO list (for the nearest time)
+
+* implement lazy (code generation and may be IR generation) JIT based on MCJIT (current one is not lazy)
+* implement ORC based JIT (a hard task)
+* implement code for adding debug information
+* implement automatic rust code generation for separated chapters
+* implement/update tutorial
+  * Chapter on IR generation
+  * Chapter on JIT and oprimizer (MCJIT based one)
+
 
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 

@@ -37,6 +37,7 @@ pub fn main_loop(stage: Stage) {
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
 //> parser-driver
+    jitter::init();
     let mut mcjitter = jitter::MCJITter::new("main");
     let mut builder_context = builder::Context::new();
 

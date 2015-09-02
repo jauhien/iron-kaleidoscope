@@ -10,6 +10,24 @@ use iron_llvm::core::types::{FunctionType, FunctionTypeRef, RealTypeCtor, RealTy
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value};
 use iron_llvm::execution_engine::{BindingSectionMemoryManagerBuilder, ExecutionEngine, MCJITBuilder};
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
+use iron_llvm::support::add_symbol;
+
+pub extern fn printd(x: f64) -> f64 {
+    println!("> {} <", x);
+    x
+}
+
+pub extern fn putchard(x: f64) -> f64 {
+    print!("{}", x as u8 as char);
+    x
+}
+
+pub fn init() {
+    unsafe {
+        add_symbol("printd", printd as *const ());
+        add_symbol("putchard", putchard as *const ());
+    }
+}
 
 struct ModulesContainer {
     execution_engines: Vec<ExecutionEngine>,
@@ -115,8 +133,7 @@ impl MCJITter {
         let current_module = std::mem::replace(&mut self.current_module, new_module);
 
         let container = self.container.clone();
-        let mm_builder = BindingSectionMemoryManagerBuilder::new();
-        let memory_manager = mm_builder
+        let memory_manager = BindingSectionMemoryManagerBuilder::new()
             .set_get_symbol_address(move |mut parent_mm, name| {
                 let addr = parent_mm.get_symbol_address(name);
                 if addr != 0 {
@@ -127,8 +144,7 @@ impl MCJITter {
             })
             .create();
 
-        let ee_builder = MCJITBuilder::new();
-        let (execution_engine, module) = match ee_builder
+        let (execution_engine, module) = match MCJITBuilder::new()
             .set_mcjit_memory_manager(Box::new(memory_manager))
             .create(current_module) {
                 Ok((ee, module)) => (ee, module),

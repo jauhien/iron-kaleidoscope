@@ -18,7 +18,6 @@ use parser;
 pub struct Context {
     context: core::Context,
     builder: core::Builder,
-//  exec_engine: llvm::ExecutionEngineRef,
     named_values: HashMap<String, LLVMValueRef>,
     ty: RealTypeRef
 }
@@ -29,54 +28,14 @@ pub trait IRBuilder {
     fn codegen(&self, context: &mut Context, mcjitter: &mut jitter::MCJITter) -> IRBuildingResult;
 }
 
-/*
-#[no_mangle]
-pub extern fn printd(x: f64) -> f64 {
-    println!("> {} <", x);
-    x
-}
-
-#[no_mangle]
-pub extern fn putchard(x: f64) -> f64 {
-    print!("{}", x as u8 as char);
-    x
-}
-
-#[allow(unused_variables)]
-pub fn run(value: llvm::ValueRef, context: &Context) -> f64 {
-    //hack for make linker not to remove print and putchard function
-    let x = (printd, putchard);
-
-    unsafe {
-        let result = LLVMRunFunction(context.exec_engine,
-                                     value,
-                                     0,
-                                     0 as *const GenericValueRef);
-        let ty = llvm::LLVMDoubleTypeInContext(context.context);
-        LLVMGenericValueToFloat(ty, result)
-    }
-}
-*/
-
 impl Context {
     pub fn new() -> Context {
-        //llvm_initialize_native_target();
 
         let context = core::Context::get_global();
         let builder = core::Builder::new();
         let named_values = HashMap::new();
         let ty = RealTypeRef::get_double();
 
-/*      let mut exec_engine = 0 as llvm::ExecutionEngineRef;
-        let mut error = 0 as *const c_char;
-        LLVMCreateExecutionEngineForModule(&mut exec_engine, module, &mut error);
-        assert!(exec_engine != 0 as llvm::ExecutionEngineRef);
-        let target_data = LLVMGetExecutionEngineTargetData(exec_engine);
-        let data_layout = LLVMCopyStringRepOfTargetData(target_data);
-        llvm::LLVMSetDataLayout(module, data_layout);
-        llvm::LLVMAddTargetData(target_data, function_passmanager);
-        LLVMDisposeMessage(data_layout);
-*/
         Context { context: context,
                   builder: builder,
                   named_values: named_values,
