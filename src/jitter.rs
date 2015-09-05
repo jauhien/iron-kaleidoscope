@@ -90,7 +90,7 @@ impl MCJITter {
         &mut self.current_module
     }
 
-    pub fn get_function(&mut self, name: &str) -> Result<FunctionRef, String> {
+    pub fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
         for ee in &self.container.borrow().execution_engines {
             let funct = match ee.find_function(name) {
                 Some(f) => {
@@ -102,7 +102,7 @@ impl MCJITter {
             let proto = match self.current_module.get_function_by_name(name) {
                 Some(f) => {
                     if f.count_basic_blocks() != 0 {
-                        return Err("redefinition of function across modules".to_string())
+                        panic!("redefinition of function across modules".to_string())
                     }
                     f
                 },
@@ -114,12 +114,12 @@ impl MCJITter {
                 }
             };
 
-            return Ok(proto)
+            return Some((proto, true))
         }
 
         match self.current_module.get_function_by_name(name) {
-            Some(f) => Ok(f),
-            None => Err("function not found: ".to_string() + name)
+            Some(f) => Some((f, f.count_basic_blocks() > 0)),
+            None => None
         }
     }
 

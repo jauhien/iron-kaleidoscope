@@ -80,8 +80,8 @@ impl IRBuilder for parser::ASTNode {
 impl IRBuilder for parser::Prototype {
     fn codegen(&self, context: &mut Context, mcjitter: &mut jitter::MCJITter) -> IRBuildingResult {
         // check if declaration with this name was already done
-        let function = match mcjitter.get_current_module().get_function_by_name(&self.name) {
-            Some(prev_definition) => {
+        let function = match mcjitter.get_function(&self.name) {
+            Some((prev_definition, redefinition)) => {
                 // we do not allow to redeclare functions with
                 // other signatures
                 if prev_definition.count_params() as usize != self.args.len() {
@@ -90,7 +90,7 @@ impl IRBuilder for parser::Prototype {
 
                 // we do not allow to redefine/redeclare already
                 // defined functions (those that have the body)
-                if prev_definition.count_basic_blocks() != 0 {
+                if redefinition {
                     return error("redefinition of function");
                 }
 
@@ -190,7 +190,10 @@ impl IRBuilder for parser::Expression {
                 let (operand, _) = try!(operand.codegen(context, mcjitter));
 
                 let name = "unary".to_string() + operator;
-                let function = try!(mcjitter.get_function(name.as_str()));
+                let (function, _) = match mcjitter.get_function(name.as_str()) {
+                    Some(function) => function,
+                    None => return error("unary operator not found")
+                };
 
                 let mut args_value = vec![operand];
 
@@ -252,7 +255,10 @@ impl IRBuilder for parser::Expression {
                     op => {
                         let name = "binary".to_string() + op;
 
-                        let function = try!(mcjitter.get_function(name.as_str()));
+                        let (function, _) = match mcjitter.get_function(&name) {
+                            Some(function) => function,
+                            None => return error("binary operator not found")
+                        };
 
                         let mut args_value = vec![lhs_value, rhs_value];
 
@@ -266,7 +272,10 @@ impl IRBuilder for parser::Expression {
 
 
             &parser::CallExpr(ref name, ref args) => {
-                let function = try!(mcjitter.get_function(name.as_str()));
+                let (function, _) = match mcjitter.get_function(name) {
+                    Some(function) => function,
+                    None => return error("unknown function referenced")
+                };
 
                 if function.count_params() as usize != args.len() {
                     return error("incorrect number of arguments passed")
