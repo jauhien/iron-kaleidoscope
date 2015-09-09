@@ -1,5 +1,7 @@
+//< ch-0
 use std::io;
 use std::io::Write;
+//> ch-0
 
 use iron_llvm::core::value::Value;
 use iron_llvm::target;
@@ -8,24 +10,31 @@ use builder;
 use builder::IRBuilder;
 
 use jitter;
+//< ch-0
 use lexer::*;
+//> ch-0
 use parser::*;
 
+//< ch-0
 pub use self::Stage::{
+//> ch-0
     Exec,
     IR,
     AST,
+//< ch-0
     Tokens
 };
+//> ch-0
 
-//< parser-stage
+//< ch-0 parser-stage
 #[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
-//> parser-stage
+//> ch-0 parser-stage
     Exec,
     IR,
 //< parser-stage
     AST,
+//< ch-0
     Tokens
 }
 //> parser-stage
@@ -35,6 +44,7 @@ pub fn main_loop(stage: Stage) {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut input = String::new();
+//> ch-0
     let mut parser_settings = default_parser_settings();
 //> parser-driver
     jitter::init();
@@ -45,7 +55,7 @@ pub fn main_loop(stage: Stage) {
         target::initilalize_native_target();
         target::initilalize_native_asm_printer();
     }
-//< parser-driver
+//< ch-0 parser-driver
 
     'main: loop {
         print!("> ");
@@ -56,17 +66,19 @@ pub fn main_loop(stage: Stage) {
             break;
         }
 
+//> ch-0
         // the constructed AST
         let mut ast = Vec::new();
         // tokens left from the previous lines
         let mut prev = Vec::new();
+//< ch-0
         loop {
             let tokens = tokenize(input.as_str());
             if stage == Tokens {
                 println!("{:?}", tokens);
                 continue 'main
             }
-
+//> ch-0
             prev.extend(tokens.into_iter());
 
             let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
@@ -89,7 +101,9 @@ pub fn main_loop(stage: Stage) {
             stdout.flush().unwrap();
             input.clear();
             stdin.read_line(&mut input).ok().expect("Failed to read line");
+//< ch-0
         }
+//> ch-0
 
         if stage == AST {
             println!("{:?}", ast);
@@ -107,9 +121,9 @@ pub fn main_loop(stage: Stage) {
                 },
             Err(message) => println!("Error occured: {}", message)
         }
-//< parser-driver
+//< ch-0 parser-driver
     }
-//> parser-driver
+//> ch-0 parser-driver
 
     if stage == IR {
         mcjitter.get_current_module().dump();
@@ -117,6 +131,6 @@ pub fn main_loop(stage: Stage) {
         mcjitter.dump();
         mcjitter.get_current_module().dump();
     }
-//< parser-driver
+//< ch-0 parser-driver
 }
-//> parser-driver
+//> ch-0 parser-driver

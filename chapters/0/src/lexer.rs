@@ -1,17 +1,6 @@
-//< ch-0 lexer-tokens-use
 pub use self::Token::{
     Def,
     Extern,
-//> ch-0 lexer-tokens-use
-    If,
-    Then,
-    Else,
-    For,
-    In,
-    Binary,
-    Unary,
-    Var,
-//< ch-0 lexer-tokens-use
     Delimiter,
     OpeningParenthesis,
     ClosingParenthesis,
@@ -20,23 +9,11 @@ pub use self::Token::{
     Number,
     Operator
 };
-//> lexer-tokens-use
 
-//< lexer-tokens
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
     Extern,
-//> ch-0 lexer-tokens
-    If,
-    Then,
-    Else,
-    For,
-    In,
-    Binary,
-    Unary,
-    Var,
-//< ch-0 lexer-tokens
     Delimiter, //';' character
     OpeningParenthesis,
     ClosingParenthesis,
@@ -45,9 +22,7 @@ pub enum Token {
     Number(f64),
     Operator(String)
 }
-//> lexer-tokens
 
-//< lexer-tokenize
 pub fn tokenize(input: &str) -> Vec<Token> {
     // regex for commentaries (start with #, end with the line end)
     let comment_re = regex!(r"(?m)#.*\n");
@@ -72,16 +47,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             match cap.name("ident").unwrap() {
                 "def" => Def,
                 "extern" => Extern,
-//> ch-0 lexer-tokenize
-                "if" => If,
-                "then" => Then,
-                "else" => Else,
-                "for" => For,
-                "in" => In,
-                "binary" => Binary,
-                "unary" => Unary,
-                "var" => Var,
-//< ch-0 lexer-tokenize
                 ident => Ident(ident.to_string())
             }
         } else if cap.name("number").is_some() {
@@ -106,4 +71,3 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     result
 }
-//> ch-0 lexer-tokenize
