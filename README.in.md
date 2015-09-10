@@ -8,7 +8,6 @@ Everything works. State corresponds to the Chapter 7 of the original tutorial
 * implement lazy (code generation and may be IR generation) JIT based on MCJIT (current one is not lazy)
 * implement ORC based JIT (a hard task)
 * implement code for adding debug information
-* implement automatic rust code generation for Chapter 1
 * implement/update tutorial
   * Chapter on IR generation
   * Chapter on JIT and oprimizer (MCJIT based one)
@@ -610,6 +609,8 @@ Driver itself looks like this:
 ```rust
 <<<src/driver.rs:parser-driver>>>
 ```
+
+[Full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/1).
 
 ## LLVM IR code generation
 

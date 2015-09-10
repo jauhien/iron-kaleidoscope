@@ -1,4 +1,3 @@
-//< ch-0 ch-1
 #![feature(plugin)]
 #![plugin(docopt_macros)]
 
@@ -8,16 +7,10 @@ extern crate docopt;
 extern crate iron_kaleidoscope;
 
 use iron_kaleidoscope::driver::{main_loop,
-//> ch-0 ch-1
-                                IR,
-                                Exec,
-//< ch-1
                                 AST,
-//< ch-0
                                 Tokens
 };
 
-//< parser-main
 docopt!(Args, "
 Usage: iron_kaleidoscope [(-l | -p | -i)]
 
@@ -30,41 +23,13 @@ Options:
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
 
-//> ch-0
     let stage = if args.flag_l {
         Tokens
-//> ch-1 parser-main
-    } else if args.flag_p {
-        AST
-//< ch-1
     } else if args.flag_i {
-//> ch-1
-/*
-//< ch-1
         panic!("not implemented");
-//> ch-1
-*/
-        IR
-//< ch-1 parser-main
     } else {
-//> ch-1 parser-main
-/*
-//< ch-0
-    if args.flag_p || args.flag_i {
-        panic!("not implemented");
-    }
-    let stage = Tokens;
-//> ch-0
-//< ch-1 parser-main
         AST
-//> ch-1 parser-main
-*/
-        //IR
-        Exec
-//< ch-1 parser-main
     };
-//< ch-0
 
     main_loop(stage);
 }
-//> ch-0 ch-1 parser-main

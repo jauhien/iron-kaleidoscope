@@ -4,6 +4,7 @@ use lexer::*;
 pub use self::Stage::{
     Tokens
 };
+
 #[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
     Tokens

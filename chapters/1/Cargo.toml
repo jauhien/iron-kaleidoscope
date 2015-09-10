@@ -1,0 +1,12 @@
+[package]
+
+name = "iron_kaleidoscope"
+version = "0.0.1"
+authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
+
+[dependencies]
+docopt = "*"
+docopt_macros = "*"
+regex = "*"
+regex_macros = "*"
+rustc-serialize = "*"
