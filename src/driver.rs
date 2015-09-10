@@ -125,11 +125,8 @@ pub fn main_loop(stage: Stage) {
     }
 //> ch-0 ch-1 parser-driver
 
-    if stage == IR {
-        mcjitter.get_current_module().dump();
-    } else if stage == Exec {
+    if stage == IR || stage == Exec {
         mcjitter.dump();
-        mcjitter.get_current_module().dump();
     }
 //< ch-0 ch-1 parser-driver
 }

@@ -12,6 +12,8 @@ use iron_llvm::execution_engine::{BindingSectionMemoryManagerBuilder, ExecutionE
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
 use iron_llvm::support::add_symbol;
 
+use builder;
+
 pub extern fn printd(x: f64) -> f64 {
     println!("> {} <", x);
     x
@@ -86,47 +88,6 @@ impl MCJITter {
         }
     }
 
-    pub fn get_current_module(&mut self) -> &mut core::Module {
-        &mut self.current_module
-    }
-
-    pub fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
-        for ee in &self.container.borrow().execution_engines {
-            let funct = match ee.find_function(name) {
-                Some(f) => {
-                    f
-                },
-                None => continue
-            };
-
-            let proto = match self.current_module.get_function_by_name(name) {
-                Some(f) => {
-                    if f.count_basic_blocks() != 0 {
-                        panic!("redefinition of function across modules".to_string())
-                    }
-                    f
-                },
-                None => {
-                    // TODO: fix iron-llvm get_type
-                    let fty = unsafe { FunctionTypeRef::from_ref(funct.get_type().to_ref()) };
-                    let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
-                    FunctionRef::new(&mut self.current_module, name, &fty)
-                }
-            };
-
-            return Some((proto, true))
-        }
-
-        match self.current_module.get_function_by_name(name) {
-            Some(f) => Some((f, f.count_basic_blocks() > 0)),
-            None => None
-        }
-    }
-
-    pub fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
-        &mut self.function_passmanager
-    }
-
     pub fn close_current_module(& mut self) {
         let (new_module, new_function_passmanager) = MCJITter::new_module(&self.module_name);
         self.function_passmanager = new_function_passmanager;
@@ -170,5 +131,49 @@ impl MCJITter {
         for module in self.container.borrow().modules.iter() {
             module.get().dump()
         }
+        self.current_module.dump();
+    }
+}
+
+impl builder::ModuleProvider for MCJITter {
+    fn get_module(&mut self) -> &mut core::Module {
+        &mut self.current_module
+    }
+
+    fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
+        for ee in &self.container.borrow().execution_engines {
+            let funct = match ee.find_function(name) {
+                Some(f) => {
+                    f
+                },
+                None => continue
+            };
+
+            let proto = match self.current_module.get_function_by_name(name) {
+                Some(f) => {
+                    if f.count_basic_blocks() != 0 {
+                        panic!("redefinition of function across modules".to_string())
+                    }
+                    f
+                },
+                None => {
+                    // TODO: fix iron-llvm get_type
+                    let fty = unsafe { FunctionTypeRef::from_ref(funct.get_type().to_ref()) };
+                    let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
+                    FunctionRef::new(&mut self.current_module, name, &fty)
+                }
+            };
+
+            return Some((proto, true))
+        }
+
+        match self.current_module.get_function_by_name(name) {
+            Some(f) => Some((f, f.count_basic_blocks() > 0)),
+            None => None
+        }
+    }
+
+    fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
+        &mut self.function_passmanager
     }
 }
