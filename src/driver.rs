@@ -7,9 +7,9 @@ use iron_llvm::core::value::Value;
 use iron_llvm::target;
 
 use builder;
-use builder::IRBuilder;
-
+use builder::{IRBuilder, ModuleProvider};
 use jitter;
+use jitter::JITter;
 //< ch-0 ch-1
 use lexer::*;
 //> ch-0
@@ -47,14 +47,22 @@ pub fn main_loop(stage: Stage) {
 //> ch-0
     let mut parser_settings = default_parser_settings();
 //> ch-1 parser-driver
-    jitter::init();
-    let mut mcjitter = jitter::MCJITter::new("main");
-    let mut builder_context = builder::Context::new();
 
-    if stage == Exec {
+    let mut ir_container : Box<JITter> = if stage == Exec {
         target::initilalize_native_target();
         target::initilalize_native_asm_printer();
-    }
+        jitter::init();
+        Box::new(
+            jitter::MCJITter::new("main")
+                )
+    } else {
+        Box::new(
+            builder::SimpleModuleProvider::new("main")
+                )
+    };
+
+    let mut builder_context = builder::Context::new();
+
 //< ch-0 ch-1 parser-driver
 
     'main: loop {
@@ -111,11 +119,10 @@ pub fn main_loop(stage: Stage) {
         }
 //> ch-1 parser-driver
 
-        match ast.codegen(&mut builder_context, &mut mcjitter) {
+        match ast.codegen(&mut builder_context, ir_container.get_module_provider()) {
             Ok((value, runnable)) =>
                 if runnable && stage == Exec {
-                    mcjitter.close_current_module();
-                    println!("=> {}", mcjitter.run_function(value));
+                    println!("=> {}", ir_container.run_function(value));
                 } else {
                     value.dump();
                 },
@@ -126,7 +133,7 @@ pub fn main_loop(stage: Stage) {
 //> ch-0 ch-1 parser-driver
 
     if stage == IR || stage == Exec {
-        mcjitter.dump();
+        ir_container.dump();
     }
 //< ch-0 ch-1 parser-driver
 }
