@@ -1,18 +1,42 @@
+//< ch-2 ir-context
 use std::collections::HashMap;
+//> ir-context
 use std::iter;
 
-use llvm_sys::LLVMRealPredicate::{LLVMRealOLT, LLVMRealONE};
+use llvm_sys::LLVMRealPredicate::
+//> ch-2
+{
+      LLVMRealONE,
+//< ch-2
+/*j*/ LLVMRealOLT
+//> ch-2
+}
+//< ch-2
+/*j*/;
 use llvm_sys::core::LLVMDeleteFunction;
+//< ir-context
 use llvm_sys::prelude::LLVMValueRef;
 
 use iron_llvm::core;
+//> ch-2 ir-context
 use iron_llvm::core::basic_block::{BasicBlock};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
+//< ch-2
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value, RealConstRef, RealConstCtor};
-use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef, RealTypeCtor, RealTypeRef};
+//< ir-context
+use iron_llvm::core::types::{
+//> ir-context
+/*j*/  FunctionTypeCtor, 
+/*j*/  FunctionTypeRef, 
+//< ir-context
+/*j*/  RealTypeCtor,
+/*jw*/ RealTypeRef
+/*j*/};
 use iron_llvm::{LLVMRef, LLVMRefCtor};
+//> ir-context
 
 use parser;
+//< ir-context
 
 pub struct Context {
     context: core::Context,
@@ -36,14 +60,18 @@ impl Context {
         }
     }
 }
+//> ir-context
 
-
+//< ir-module-provider
 pub trait ModuleProvider {
     fn dump(&self);
     fn get_module(&mut self) -> &mut core::Module;
     fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)>;
+//> ch-2 ir-module-provider
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager;
+//< ch-2 ir-module-provider
 }
+//> ch-2 ir-module-provider
 
 pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
     let module = core::Module::new(name);
@@ -59,19 +87,31 @@ pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
 
     (module, function_passmanager)
 }
+//< ch-2 ir-module-provider
 
 pub struct SimpleModuleProvider {
-    module: core::Module,
-    function_passmanager: core::FunctionPassManager
+//> ch-2 ir-module-provider
+    function_passmanager: core::FunctionPassManager,
+//< ch-2 ir-module-provider
+    module: core::Module
 }
 
 impl SimpleModuleProvider {
     pub fn new(name: &str) -> SimpleModuleProvider {
+//> ch-2 ir-module-provider
         let (module, function_passmanager) = new_module(name);
+/*
+//< ch-2 ir-module-provider
+        let module = core::Module::new(name);
+//> ch-2 ir-module-provider
+*/
+//< ch-2 ir-module-provider
 
         SimpleModuleProvider {
-            module: module,
-            function_passmanager: function_passmanager
+//> ch-2 ir-module-provider
+            function_passmanager: function_passmanager,
+//< ch-2 ir-module-provider
+            module: module
         }
     }
 }
@@ -91,13 +131,16 @@ impl ModuleProvider for SimpleModuleProvider {
             None => None
         }
     }
+//> ch-2 ir-module-provider
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
         &mut self.function_passmanager
     }
+//< ch-2 ir-module-provider
 }
+//> ir-module-provider
 
-
+//< ir-builder-trait
 pub type IRBuildingResult = Result<(LLVMValueRef, bool), String>;
 
 fn error(message : &str) -> IRBuildingResult {
@@ -107,7 +150,9 @@ fn error(message : &str) -> IRBuildingResult {
 pub trait IRBuilder {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult;
 }
+//> ir-builder-trait
 
+//< ir-top-level
 impl IRBuilder for parser::ParsingResult {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
@@ -136,7 +181,9 @@ impl IRBuilder for parser::ASTNode {
         }
     }
 }
+//> ir-top-level
 
+//< ir-prototype
 impl IRBuilder for parser::Prototype {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         // check if declaration with this name was already done
@@ -173,7 +220,9 @@ impl IRBuilder for parser::Prototype {
         Ok((function.to_ref(), false))
     }
 }
+//> ir-prototype
 
+//< ir-function
 impl IRBuilder for parser::Function {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         // we have no global variables, so we can clear all the
@@ -189,9 +238,16 @@ impl IRBuilder for parser::Function {
 
         // set function parameters
         for (param, arg) in function.params_iter().zip(&self.prototype.args) {
+//> ch-2 ir-function
             let arg_alloca = create_entry_block_alloca(context, &function, arg);
             context.builder.build_store(param.to_ref(), arg_alloca);
             context.named_values.insert(arg.clone(), arg_alloca);
+            /*
+//< ch-2 ir-function
+            context.named_values.insert(arg.clone(), param.to_ref());
+//> ch-2 ir-function
+            */
+//< ch-2 ir-function
         }
 
         // emit function body
@@ -208,13 +264,16 @@ impl IRBuilder for parser::Function {
         // the last instruction should be return
         context.builder.build_ret(&body);
 
+//> ch-2 ir-function
         module_provider.get_pass_manager().run(&mut function);
+//< ch-2 ir-function
 
         // clear local variables
         context.named_values.clear();
         Ok((function.to_ref(), self.prototype.name.as_str() == ""))
     }
 }
+//> ch-2 ir-function
 
 fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
     let mut builder = core::Builder::new();
@@ -225,25 +284,37 @@ fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_
 }
 
 
+//< ch-2 ir-expression
 impl IRBuilder for parser::Expression {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
 
 
+//< ir-literal
             &parser::LiteralExpr(ref value) => {
                 Ok((RealConstRef::get(&context.ty, *value).to_ref(), false))
             },
+//> ir-literal
 
 
+//< ir-variable
             &parser::VariableExpr(ref name) => {
                 match context.named_values.get(name) {
                     Some(value) => {
+//> ch-2 ir-expression ir-variable
                         let var = context.builder.build_load(*value, name);
                         Ok((var, false))
+/*
+//< ch-2 ir-expression ir-variable
+                        Ok((*value, false))
+//> ch-2 ir-expression ir-variable
+*/
+//< ch-2 ir-expression ir-variable
                     },
                     None => error("unknown variable name")
                 }
             },
+//> ch-2 ir-expression ir-variable
 
 
             &parser::UnaryExpr(ref operator, ref operand) => {
@@ -262,9 +333,12 @@ impl IRBuilder for parser::Expression {
                                                 "unop"),
                     false))
             },
+//< ch-2 ir-expression
 
 
+//< ir-binary
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
+//> ch-2 ir-expression ir-binary
 
                 if name.as_str() == "=" {
                     let var_name = match **lhs {
@@ -284,6 +358,7 @@ impl IRBuilder for parser::Expression {
                     return Ok((value, false))
                 }
 
+//< ch-2 ir-expression ir-binary
                 let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
                 let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
 
@@ -312,6 +387,12 @@ impl IRBuilder for parser::Expression {
                                                            "booltmp"),
                             false))
                     },
+//> ch-2 ir-expression ir-binary
+/*
+//< ch-2 ir-expression ir-binary
+                    _ => error("invalid binary operator")
+//> ch-2 ir-expression ir-binary
+*/
                     op => {
                         let name = "binary".to_string() + op;
 
@@ -327,10 +408,13 @@ impl IRBuilder for parser::Expression {
                                                        "binop"),
                             false))
                     }
+//< ch-2 ir-expression ir-binary
                 }
             },
+//> ch-2 ir-binary
 
 
+//< ch-2 ir-call
             &parser::CallExpr(ref name, ref args) => {
                 let (function, _) = match module_provider.get_function(name) {
                     Some(function) => function,
@@ -351,7 +435,9 @@ impl IRBuilder for parser::Expression {
                                                args_value.as_mut_slice(),
                                                "calltmp"),
                     false))
-            },
+            }
+//> ch-2 ir-expression ir-call
+            ,
 
 
             &parser::ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
@@ -459,6 +545,8 @@ impl IRBuilder for parser::Expression {
 
                 Ok((body_value, false))
             }
+//< ch-2 ir-expression
         }
     }
 }
+//> ch-2 ir-expression

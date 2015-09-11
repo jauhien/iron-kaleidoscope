@@ -9,7 +9,6 @@ Everything works. State corresponds to the Chapter 7 of the original tutorial
 * implement ORC based JIT (a hard task)
 * implement code for adding debug information
 * implement/update tutorial
-  * Chapter on IR generation
   * Chapter on JIT and oprimizer (MCJIT based one)
 
 
@@ -20,11 +19,11 @@ the latest Rust and on improvinvg the way it uses LLVM.
 
 ## Table of Contents
 
-* [Chapter 0. Introduction](#introduction)
+* [Chapter 0. Introduction](#chapter-0-introduction)
   * [Basic variant of the Kaleidoscope language](#basic-variant-of-the-kaleidoscope-language)
   * [The project structure](#the-project-structure)
   * [The lexer](#the-lexer)
-* [Chapter 1. Parser and AST implementation](#ast-and-parser-implementation)
+* [Chapter 1. Parser and AST implementation](#chapter-1-ast-and-parser-implementation)
   * [The grammar](#the-grammar)
   * [The Abstract Syntax Tree (AST)](#the-abstract-syntax-tree-ast)
   * [Parser implementation: introduction](#parser-implementation-introduction)
@@ -34,11 +33,10 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Parsing of primary expressions](#parsing-of-primary-expressions)
   * [Parsing of binary expressions](#parsing-of-binary-expressions)
   * [The driver](#the-driver)
-* [LLVM IR code generation](#llvm-ir-code-generation)
-  * [Rust LLVM bindings and code generation setup](#rust-llvm-bindings-and-code-generation-setup)
+* [Chapter 2. LLVM IR code generation](#chapter-2-llvm-ir-code-generation)
+  * [Code generation setup](#code-generation-setup)
   * [Top level code generation](#top-level-code-generation)
   * [Expression code generation](#expression-code-generation)
-  * [Changes in the driver](#changes-in-the-driver)
 * [JIT and optimizer support](#jit-and-optimizer-support)
   * [Missing LLVM bindings](#missing-llvm-bindings)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
@@ -1037,9 +1035,7 @@ pub fn main_loop(stage: Stage) {
 
 [Full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/1).
 
-## LLVM IR code generation
-
-**NOTE: this is outdated, I'm working currently on making IR generation work again**
+## Chapter 2. LLVM IR code generation
 
 Before it we have used nothing from LLVM libraries. The described
 lexer and parser have nothing LLVM specific. It is a time to start a
@@ -1058,112 +1054,167 @@ representation.
 We want to generate IR from the AST that we have built in the previous
 chapter. It is surprisingly simple, as we will see in a moment.
 
-### Rust LLVM bindings and code generation setup
+### Code generation setup
 
 LLVM has two interfaces: C++ interface and a stable C interface. Apart
 from it LLVM has a number of bindings, usually based on the C interface.
 
-Before or during reading of this chapter of tutorial you can read an
+Before or during reading this chapter of tutorial you can read an
 [appropriate section in the LLVM Programmer's
 Manual](http://llvm.org/docs/ProgrammersManual.html#the-core-llvm-class-hierarchy-reference).
 
-As you probably know, Rust compiler uses LLVM. So it should not
-surprise you, that is has LLVM bindings somewhere deeply inside its
-code. You can find them in the `src/librustc_llvm` directory of the
-Rust compiler sources. Those bindings (based on the stable C
-interface) are not full and also are unsafe.
-There are some safe wrappers on top of them, but these wrappers are
-very Rust compiler specific, so we will use the available unsafe
-bindings.
+We'll use [my Rust LLVM bindings](https://github.com/jauhien/iron-llvm) in this
+tutorial (which serves as first documentation for them). These bindings
+are work in progress, but I have plans to fully cover LLVM C API and as much as possible
+of usefull features available only in C++ API. `iron-llvm` aims to be safe and rust idiomatic,
+it is built on top of [existing full unsafe bindings](https://bitbucket.org/tari/llvm-sys.rs/).
 
-To start using bindings we need to add an appropriate use in the beginning of the
-module:
+Using it is as simple as adding
 
-```rust
-use rustc::lib::llvm;
+```
+[dependencies]
+llvm-sys = "*"
+
+[dependencies.iron_llvm]
+git = "https://github.com/jauhien/iron-llvm.git"
 ```
 
-and link with the necessary crate (in the root module):
+to [Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) and
+importing necessary crates
 
 ```rust
-extern crate rustc;
+extern crate iron_llvm;
+extern crate llvm_sys;
 ```
 
-Now we need to add code generation functions to every AST element. The
-result of these function will be `llvm::ValueRef`:
+`iron-llvm` is still not published on [crates.io](https://crates.io/), this is why we use `github`
+dependency. Also after I rework what is exports (mainly basic LLVM types), explicit use of
+`llvm-sys` will be not necessary.
+
+To generate IR we'll need these objects:
+
+* [Context](http://llvm.org/docs/doxygen/html/classllvm_1_1LLVMContext.html)
+* [Module](http://llvm.org/docs/doxygen/html/classllvm_1_1Module.html) where generated IR will be stored
+* [IR builder](http://llvm.org/docs/doxygen/html/classllvm_1_1IRBuilder.html) that will do real generation work
+
+Module is a compilation unit of LLVM IR. It contains
+[functions](http://llvm.org/docs/doxygen/html/classllvm_1_1Function.html) and other high-level items.
+Functions are usual functions well-know from every programming language. They have some type,
+defined by parameters and return value.
+Functions are built up from [basic blocks](http://llvm.org/docs/doxygen/html/classllvm_1_1BasicBlock.html).
+Basic block is an instruction sequence that has no control flow instructions inside. It ends with
+[terminator instruction](http://llvm.org/docs/doxygen/html/classllvm_1_1TerminatorInst.html) that
+passes control to other basic blocks.
+
+Also we'll need a map of named values (function parameters in our first version) and a reference to
+double type.
+
+We'll pack context, IR builder, named values map and double type reference in a simple struct:
 
 ```rust
-pub type IRBuildingResult = Result<llvm::ValueRef, String>;
+use std::collections::HashMap;
+use llvm_sys::prelude::LLVMValueRef;
 
-pub trait IRBuilder {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult;
+use iron_llvm::core;
+use iron_llvm::core::types::{RealTypeCtor, RealTypeRef};
+use iron_llvm::{LLVMRef, LLVMRefCtor};
+
+pub struct Context {
+    context: core::Context,
+    builder: core::Builder,
+    named_values: HashMap<String, LLVMValueRef>,
+    ty: RealTypeRef
 }
+
+impl Context {
+    pub fn new() -> Context {
+
+        let context = core::Context::get_global();
+        let builder = core::Builder::new();
+        let named_values = HashMap::new();
+        let ty = RealTypeRef::get_double();
+
+        Context { context: context,
+                  builder: builder,
+                  named_values: named_values,
+                  ty: ty
+        }
+    }
+}
+```
+
+For code genertion we will use one module. But we'll create for it
+a trait `ModuleProvider` as it will simplify adding a JIT-compiler later (not showing uses this time):
+
+```rust
+pub trait ModuleProvider {
+    fn dump(&self);
+    fn get_module(&mut self) -> &mut core::Module;
+    fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)>;
+}
+
+pub struct SimpleModuleProvider {
+    module: core::Module
+}
+
+impl SimpleModuleProvider {
+    pub fn new(name: &str) -> SimpleModuleProvider {
+        let module = core::Module::new(name);
+
+        SimpleModuleProvider {
+            module: module
+        }
+    }
+}
+
+impl ModuleProvider for SimpleModuleProvider {
+    fn dump(&self) {
+        self.module.dump();
+    }
+
+    fn get_module(&mut self) -> &mut core::Module {
+        &mut self.module
+    }
+
+    fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
+        match self.module.get_function_by_name(name) {
+            Some(f) => Some((f, f.count_basic_blocks() > 0)),
+            None => None
+        }
+    }
+}
+```
+
+Functions defined in this trait do the following:
+
+* `dump` dumps all the module content to the standard output
+* `get_module` gives reference to the module
+* `get_function` gives generated function by name (if there is any),
+    second element of pair tells whether this is prototype (function without body, containing no basic blocks) or definition.
+
+Now when we have everything prepared, there is a time to add code generation functions to every AST element. The
+result of these functions will be [`LLVMValueRef`](http://llvm.org/docs/doxygen/html/classllvm_1_1Value.html). This type represents a
+[Static Single Assignment value](http://en.wikipedia.org/wiki/Static_single_assignment_form). Near everything you have in IR is
+an SSA value. Every such value has its [type](http://llvm.org/docs/doxygen/html/classllvm_1_1Type.html). In our simple language
+there will be only double typed values and functions.
+
+AST elements will implement a trait for code generation:
+
+```rust
+pub type IRBuildingResult = Result<(LLVMValueRef, bool), String>;
 
 fn error(message : &str) -> IRBuildingResult {
     Err(message.to_string())
 }
-```
 
-`Context` is a structure with additional context data needed for the
-code generation:
-
-```rust
-pub struct Context {
-    context: llvm::ContextRef,
-    module: llvm::ModuleRef,
-    builder: llvm::BuilderRef,
-    named_values: HashMap<String, llvm::ValueRef>
+pub trait IRBuilder {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult;
 }
 ```
 
-`context` is an LLVM context used during code generation. The `module`
-contains all the generated code. It is a top level structure similar to the
-Rust crate. `builder` is a helper object that emits IR instructions,
-it keeps track of the current place to insert instructions and
-provides an interface to code generation. `named_values` will be used
-to track defined values (at the moment we have only named function parameters).
-
-Before doing any real job we need to initialize the context. Also we add a
-`dump` function to display the results of the code generation:
-
-```rust
-impl Context {
-    pub fn new(module_name : &str) -> Context {
-        unsafe {
-            let context = llvm::LLVMContextCreate();
-            let module = llvm::LLVMModuleCreateWithNameInContext(module_name.to_c_str().as_ptr(), context);
-            let builder = llvm::LLVMCreateBuilderInContext(context);
-            let named_values = HashMap::new();
-
-            Context { context: context,
-                      module: module,
-                      builder: builder,
-                      named_values: named_values }
-        }
-    }
-
-    pub fn dump(&self) {
-        unsafe {
-            llvm::LLVMDumpModule(self.module);
-        }
-    }
-}
-```
-
-In addition, we will need to do some cleaning up after code generation is
-finished and we no longer need our context:
-
-```rust
-impl Drop for Context {
-    fn drop(&mut self) {
-        unsafe {
-            llvm::LLVMDisposeBuilder(self.builder);
-            llvm::LLVMDisposeModule(self.module);
-            llvm::LLVMContextDispose(self.context);
-        }
-    }
-}
-```
+We return a pair here with second element showing if the value we generated was an anonymous function.
+This will be useful later when we'll want to execute such functions (as you probably remember
+we've packed top-level expressions into anonymous functions).
 
 ### Top level code generation
 
@@ -1171,31 +1222,31 @@ Let's implement `IRBuilder` trait for top level data structures. For
 `ParsingResults`, AST tree and `ASTNode` it is really trivial:
 
 ```rust
-impl IRBuilder for ParsingResult {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+impl IRBuilder for parser::ParsingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
-            &Ok((ref ast, _)) => ast.codegen(context),
+            &Ok((ref ast, _)) => ast.codegen(context, module_provider),
             &Err(ref message) => Err(message.clone())
         }
     }
 }
 
-impl IRBuilder for Vec<ASTNode> {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+impl IRBuilder for Vec<parser::ASTNode> {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         let mut result = error("empty AST");
         for node in self.iter() {
-            result = Ok(try!(node.codegen(context)));
+            result = Ok(try!(node.codegen(context, module_provider)));
         }
 
         result
     }
 }
 
-impl IRBuilder for ASTNode {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+impl IRBuilder for parser::ASTNode {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
-            &ExternNode(ref prototype) => prototype.codegen(context),
-            &FunctionNode(ref function) => function.codegen(context)
+            &parser::ExternNode(ref prototype) => prototype.codegen(context, module_provider),
+            &parser::FunctionNode(ref function) => function.codegen(context, module_provider)
         }
     }
 }
@@ -1211,48 +1262,40 @@ real work there including handling of named function parameters.
 Code generation for prototypes looks like this:
 
 ```rust
-impl IRBuilder for Prototype {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
-        unsafe {
-            // check if declaration with this name was already done
-            let prev_definition = llvm::LLVMGetNamedFunction(context.module, self.name.to_c_str().as_ptr());
+impl IRBuilder for parser::Prototype {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+        // check if declaration with this name was already done
+        let function = match module_provider.get_function(&self.name) {
+            Some((prev_definition, redefinition)) => {
+                // we do not allow to redeclare functions with
+                // other signatures
+                if prev_definition.count_params() as usize != self.args.len() {
+                    return error("redefinition of function with different number of args")
+                }
 
-            let function =
-                if !prev_definition.is_null() {
-                    // we do not allow to redeclare functions with
-                    // other signatures
-                    if llvm::LLVMCountParams(prev_definition) as uint != self.args.len() {
-                        return error("redefinition of function with different number of args")
-                    }
-                    // we do not allow to redefine/redeclare already
-                    // defined functions (those that have the body)
-                    if llvm::LLVMCountBasicBlocks(prev_definition) != 0 {
-                        return error("redefinition of function");
-                    }
+                // we do not allow to redefine/redeclare already
+                // defined functions (those that have the body)
+                if redefinition {
+                    return error("redefinition of function");
+                }
 
-                    prev_definition
-
-                } else {
-                    // function type if defined by number and types of
-                    // the arguments
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    let param_types = Vec::from_elem(self.args.len(), ty);
-                    let fty = llvm::LLVMFunctionType(ty, param_types.as_ptr(), param_types.len() as c_uint, false as c_uint);
-
-                    llvm::LLVMAddFunction(context.module,
-                                          self.name.to_c_str().as_ptr(),
-                                          fty)
-                };
-
-            // set correct parameters names
-            let mut param = llvm::LLVMGetFirstParam(function);
-            for arg in self.args.iter() {
-                llvm::LLVMSetValueName(param, arg.to_c_str().as_ptr());
-                param = llvm::LLVMGetNextParam(param);
+                prev_definition
+            },
+            None => {
+                // function type is defined by number and types of
+                // the arguments
+                let mut param_types = iter::repeat(context.ty.to_ref()).take(self.args.len()).collect::<Vec<_>>();
+                let fty = FunctionTypeRef::get(&context.ty, param_types.as_mut_slice(), false);
+                FunctionRef::new(&mut module_provider.get_module(), &self.name, &fty)
             }
+        };
 
-            Ok((function, false))
+        // set correct parameters names
+        for (param, arg) in function.params_iter().zip(&self.args) {
+            param.set_name(arg);
         }
+
+        Ok((function.to_ref(), false))
     }
 }
 ```
@@ -1269,46 +1312,42 @@ iterate through the parameters setting correct names for them.
 Function code generation looks like this:
 
 ```rust
-impl IRBuilder for Function {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
+impl IRBuilder for parser::Function {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         // we have no global variables, so we can clear all the
         // previously defined named values as they come from other functions
         context.named_values.clear();
 
-        let function = try!(self.prototype.codegen(context));
+        let (function, _) = try!(self.prototype.codegen(context, module_provider));
+        let mut function = unsafe {FunctionRef::from_ref(function)};
 
-        unsafe {
-            // basic block that will contain generated instructions
-            let basic_block = llvm::LLVMAppendBasicBlockInContext(context.context,
-                                                                  function,
-                                                                  "entry".to_c_str().as_ptr());
-            llvm::LLVMPositionBuilderAtEnd(context.builder, basic_block);
+        // basic block that will contain generated instructions
+        let mut bb = function.append_basic_block_in_context(&mut context.context, "entry");
+        context.builder.position_at_end(&mut bb);
 
-            // set function parameters
-            let mut param = llvm::LLVMGetFirstParam(function);
-            for arg in self.prototype.args.iter() {
-                context.named_values.insert(arg.clone(), param);
-                param = llvm::LLVMGetNextParam(param);
-            }
-
-            // emit function body
-            // if error uccured, remove the function, so user can
-            // redefine it
-            let body = match self.body.codegen(context) {
-                Ok((value, _)) => value,
-                Err(message) => {
-                    llvm::LLVMDeleteFunction(function);
-                    return Err(message);
-                }
-            };
-
-            // the last instruction should be return
-            llvm::LLVMBuildRet(context.builder, body);
+        // set function parameters
+        for (param, arg) in function.params_iter().zip(&self.prototype.args) {
+            context.named_values.insert(arg.clone(), param.to_ref());
         }
+
+        // emit function body
+        // if error occured, remove the function, so user can
+        // redefine it
+        let body = match self.body.codegen(context, module_provider) {
+            Ok((value, _)) => value,
+            Err(message) => {
+                unsafe {LLVMDeleteFunction(function.to_ref())};
+                return Err(message);
+            }
+        };
+
+        // the last instruction should be return
+        context.builder.build_ret(&body);
+
 
         // clear local variables
         context.named_values.clear();
-        Ok(function)
+        Ok((function.to_ref(), self.prototype.name.as_str() == ""))
     }
 }
 ```
@@ -1334,7 +1373,7 @@ expressions code generation now, as builder is setted up and has a place
 where it can emit instructions. Also we have local variables added to
 the `named_values` map, so they can be used from inside function
 bodies. Also, remember, that we have closed top level expressions into
-anonymous functions, so they need no additional logic.
+anonymous functions, we detect this by checking prototype name.
 
 ### Expression code generation
 
@@ -1345,72 +1384,80 @@ appropriate language constructions. Here is the full function for reference,
 comments will follow:
 
 ```rust
-impl IRBuilder for Expression {
-    fn codegen(&self, context: &mut Context) -> IRBuildingResult {
-        unsafe {
-            match self {
-                &Literal(ref value) => {
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    Ok(llvm::LLVMConstReal(ty, *value))
-                },
-                &Variable(ref name) => {
-                    match context.named_values.find(name) {
-                        Some(value) => Ok(*value),
-                        None => error("unknown variable name")
-                    }
-                },
-                &Binary(ref name, ref lhs, ref rhs) => {
-                    let lhs_value = try!(lhs.codegen(context));
-                    let rhs_value = try!(rhs.codegen(context));
+impl IRBuilder for parser::Expression {
+    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+        match self {
 
-                    match name.as_slice() {
-                        "+" => Ok(llvm::LLVMBuildFAdd(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       "addtmp".to_c_str().as_ptr())),
-                        "-" => Ok(llvm::LLVMBuildFSub(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       "subtmp".to_c_str().as_ptr())),
-                        "*" => Ok(llvm::LLVMBuildFMul(context.builder,
-                                                    lhs_value,
-                                                    rhs_value,
-                                                    "multmp".to_c_str().as_ptr())),
-                        "<" => {
-                            let cmp = llvm::LLVMBuildFCmp(context.builder,
-                                                          llvm::RealOLT as c_uint,
-                                                          lhs_value,
-                                                          rhs_value,
-                                                          "cmptmp".to_c_str().as_ptr());
-                            let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                            // convert boolean to double 0.0 or 1.0
-                            Ok(llvm::LLVMBuildUIToFP(context.builder,
-                                                      cmp,
-                                                      ty,
-                                                      "booltmp".to_c_str().as_ptr()))
-                        },
-                        _ => error("invalid binary operator")
-                    }
-                },
-                &Call(ref name, ref args) => {
-                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
-                    if function.is_null() {
-                        return error("unknown function referenced")
-                    }
-                    if llvm::LLVMCountParams(function) as uint != args.len() {
-                        return error("incorrect number of arguments passed")
-                    }
-                    let mut args_value = Vec::new();
-                    for arg in args.iter() {
-                        let arg_value = try!(arg.codegen(context));
-                        args_value.push(arg_value);
-                    }
-                    Ok(llvm::LLVMBuildCall(context.builder,
-                                            function,
-                                            args_value.as_ptr(),
-                                            args_value.len() as c_uint,
-                                            "calltmp".to_c_str().as_ptr()))
+
+            &parser::LiteralExpr(ref value) => {
+                Ok((RealConstRef::get(&context.ty, *value).to_ref(), false))
+            },
+
+
+            &parser::VariableExpr(ref name) => {
+                match context.named_values.get(name) {
+                    Some(value) => {
+                        Ok((*value, false))
+                    },
+                    None => error("unknown variable name")
                 }
+            },
+
+
+            &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
+                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
+                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
+
+                match name.as_str() {
+                    "+" => Ok((context.builder.build_fadd(lhs_value,
+                                                          rhs_value,
+                                                          "addtmp"),
+                               false)),
+                    "-" => Ok((context.builder.build_fsub(lhs_value,
+                                                          rhs_value,
+                                                          "subtmp"),
+                               false)),
+                    "*" => Ok((context.builder.build_fmul(lhs_value,
+                                                          rhs_value,
+                                                          "multmp"),
+                               false)),
+                    "<" => {
+                        let cmp = context.builder.build_fcmp(LLVMRealOLT,
+                                                             lhs_value,
+                                                             rhs_value,
+                                                             "cmptmp");
+
+                        // convert boolean to double 0.0 or 1.0
+                        Ok((context.builder.build_ui_to_fp(cmp,
+                                                           context.ty.to_ref(),
+                                                           "booltmp"),
+                            false))
+                    },
+                    _ => error("invalid binary operator")
+                }
+            },
+
+
+            &parser::CallExpr(ref name, ref args) => {
+                let (function, _) = match module_provider.get_function(name) {
+                    Some(function) => function,
+                    None => return error("unknown function referenced")
+                };
+
+                if function.count_params() as usize != args.len() {
+                    return error("incorrect number of arguments passed")
+                }
+
+                let mut args_value = Vec::new();
+                for arg in args.iter() {
+                    let (arg_value, _) = try!(arg.codegen(context, module_provider));
+                    args_value.push(arg_value);
+                }
+
+                Ok((context.builder.build_call(function.to_ref(),
+                                               args_value.as_mut_slice(),
+                                               "calltmp"),
+                    false))
             }
         }
     }
@@ -1423,10 +1470,9 @@ For `Literal` expression we just return a real constant with the
 appropriate value:
 
 ```rust
-                &Literal(ref value) => {
-                    let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                    Ok(llvm::LLVMConstReal(ty, *value))
-                }
+            &parser::LiteralExpr(ref value) => {
+                Ok((RealConstRef::get(&context.ty, *value).to_ref(), false))
+            },
 ```
 
 For variables we look in the `named_values` map and if there is such a
@@ -1434,15 +1480,17 @@ variable there (a value that corresponds to the function argument),
 we return the value or emit an error otherwise:
 
 ```rust
-                &Variable(ref name) => {
-                    match context.named_values.find(name) {
-                        Some(value) => Ok(*value),
-                        None => error("unknown variable name")
-                    }
+            &parser::VariableExpr(ref name) => {
+                match context.named_values.get(name) {
+                    Some(value) => {
+                        Ok((*value, false))
+                    },
+                    None => error("unknown variable name")
                 }
+            },
 ```
 
-For binary expressions we do some real instructions generation. Note,
+For binary expressions we do some real instructions generation. Remember,
 that LLVM uses
 [SSA](http://en.wikipedia.org/wiki/Static_single_assignment_form), so
 value, instruction and variable are the same. They are identified by a
@@ -1460,201 +1508,82 @@ instruction based on the value of operator. For comparison we do
 additional type conversion as mentioned.
 
 ```rust
-                &Binary(ref name, ref lhs, ref rhs) => {
-                    let lhs_value = try!(lhs.codegen(context));
-                    let rhs_value = try!(rhs.codegen(context));
+            &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
+                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
+                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
 
-                    match name.as_slice() {
-                        "+" => Ok(llvm::LLVMBuildFAdd(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       "addtmp".to_c_str().as_ptr())),
-                        "-" => Ok(llvm::LLVMBuildFSub(context.builder,
-                                                       lhs_value,
-                                                       rhs_value,
-                                                       "subtmp".to_c_str().as_ptr())),
-                        "*" => Ok(llvm::LLVMBuildFMul(context.builder,
-                                                    lhs_value,
-                                                    rhs_value,
-                                                    "multmp".to_c_str().as_ptr())),
-                        "<" => {
-                            let cmp = llvm::LLVMBuildFCmp(context.builder,
-                                                          llvm::RealOLT as c_uint,
-                                                          lhs_value,
+                match name.as_str() {
+                    "+" => Ok((context.builder.build_fadd(lhs_value,
                                                           rhs_value,
-                                                          "cmptmp".to_c_str().as_ptr());
-                            let ty = llvm::LLVMDoubleTypeInContext(context.context);
-                            // convert boolean to double 0.0 or 1.0
-                            Ok(llvm::LLVMBuildUIToFP(context.builder,
-                                                      cmp,
-                                                      ty,
-                                                      "booltmp".to_c_str().as_ptr()))
-                        },
-                        _ => error("invalid binary operator")
-                    }
+                                                          "addtmp"),
+                               false)),
+                    "-" => Ok((context.builder.build_fsub(lhs_value,
+                                                          rhs_value,
+                                                          "subtmp"),
+                               false)),
+                    "*" => Ok((context.builder.build_fmul(lhs_value,
+                                                          rhs_value,
+                                                          "multmp"),
+                               false)),
+                    "<" => {
+                        let cmp = context.builder.build_fcmp(LLVMRealOLT,
+                                                             lhs_value,
+                                                             rhs_value,
+                                                             "cmptmp");
+
+                        // convert boolean to double 0.0 or 1.0
+                        Ok((context.builder.build_ui_to_fp(cmp,
+                                                           context.ty.to_ref(),
+                                                           "booltmp"),
+                            false))
+                    },
+                    _ => error("invalid binary operator")
                 }
+            },
 ```
 
 For call code generation we do function name lookup in the LLVM
 Module's symbol table first. Then we compare the number of arguments in
 call AST node and in the function defined in the LLVM Module. After it
 we generate a value for every argument and create the arguments
-vector. Note, how we can pass a pointer to a vector to external code.
+vector.
 
 ```rust
-                &Call(ref name, ref args) => {
-                    let function = llvm::LLVMGetNamedFunction(context.module, name.to_c_str().as_ptr());
-                    if function.is_null() {
-                        return error("unknown function referenced")
-                    }
-                    if llvm::LLVMCountParams(function) as uint != args.len() {
-                        return error("incorrect number of arguments passed")
-                    }
-                    let mut args_value = Vec::new();
-                    for arg in args.iter() {
-                        let arg_value = try!(arg.codegen(context));
-                        args_value.push(arg_value);
-                    }
-                    Ok(llvm::LLVMBuildCall(context.builder,
-                                            function,
-                                            args_value.as_ptr(),
-                                            args_value.len() as c_uint,
-                                            "calltmp".to_c_str().as_ptr()))
+            &parser::CallExpr(ref name, ref args) => {
+                let (function, _) = match module_provider.get_function(name) {
+                    Some(function) => function,
+                    None => return error("unknown function referenced")
+                };
+
+                if function.count_params() as usize != args.len() {
+                    return error("incorrect number of arguments passed")
                 }
+
+                let mut args_value = Vec::new();
+                for arg in args.iter() {
+                    let (arg_value, _) = try!(arg.codegen(context, module_provider));
+                    args_value.push(arg_value);
+                }
+
+                Ok((context.builder.build_call(function.to_ref(),
+                                               args_value.as_mut_slice(),
+                                               "calltmp"),
+                    false))
+            }
 ```
 
 That's all for code generation. You can easily add new operators to
 Kaleidoscope with this implementation. For a list of instructions look
 in [the LLVM language reference](http://llvm.org/docs/LangRef.html).
 
-### Changes in the driver
-
-As we can generate LLVM IR now, it would be interesting to have a look
-at it. To do so, we will change our driver slightly. First, we will
-add new command line option:
-
-```rust
-docopt!(Args, "
-Usage: iron_kaleidoscope [(-l | -p | -i)]
-
-Options:
-    -l  Run only lexer and show its output.
-    -p  Run only parser and show its output.
-    -i  Run only IR builder and show its output.
-")
-```
-
-Now we'll extend `Stage` enum and handle command line option in the
-`main` function:
-
-```rust
-#[deriving(PartialEq, Clone, Show)]
-pub enum Stage {
-    Tokens,
-    AST,
-    IR
-}
-```
-
-```rust
-#[cfg(not(test))]
-fn main() {
-    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-
-    let stage = if args.flag_l {
-        Tokens
-    } else if args.flag_p {
-        AST
-    } else {
-        IR
-    };
-
-    main_loop(stage);
-}
-```
-
-Then we can add this code to the driver after checking for `AST`
-stage:
-
-```rust
-        match ast.codegen(&mut context) {
-            Ok(value) => {
-                dump_value(value)
-            },
-            Err(message) => println!("Error occured: {}", message)
-        }
-```
-
-Also we can dump the whole module before exiting, so driver will look
-like this now:
-
-```rust
-pub fn main_loop(stage: Stage) {
-    let mut parser_settings = default_parser_settings();
-
-    'main: loop {
-        print!(">");
-        let mut input = io::stdin().read_line().ok().expect("Failed to read line");
-        if input.as_slice() == ".quit\n" {
-            break;
-        }
-
-        // the constructed AST
-        let mut ast = Vec::new();
-        // tokens left from the previous lines
-        let mut prev = Vec::new();
-        loop {
-            let tokens = tokenize(input.as_slice());
-            if stage == Tokens {
-                println!("{}", tokens);
-                continue 'main
-            }
-
-            prev.extend(tokens.into_iter());
-
-            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
-            match parsing_result {
-                Ok((parsed_ast, rest)) => {
-                    ast.extend(parsed_ast.into_iter());
-                    if rest.is_empty() {
-                        // we have parsed the full expression
-                        break
-                    } else {
-                        prev = rest;
-                    }
-                },
-                Err(message) => {
-                    println!("Error occured: {}", message);
-                    continue 'main
-                }
-            }
-            print!(".");
-            input = io::stdin().read_line().ok().expect("Failed to read line");
-        }
-
-        if stage == AST {
-            println!("{}", ast);
-            continue
-        }
-
-        match ast.codegen(&mut context) {
-            Ok(value) => {
-                dump_value(value)
-            },
-            Err(message) => println!("Error occured: {}", message)
-        }
-    }
-
-    if stage == IR {
-        context.dump();
-    }
-}
-```
+Full code for this chapter (including changes in driver, where we dump
+values as they are generate and the whole module before exiting) is
+available [here](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/2).
 
 We can experiment with LLVM IR building now:
 
 ```
->2+2
+> 2+2
 
 define double @0() {
 entry:
@@ -1667,7 +1596,7 @@ fold constants. Also, note how top level expressions are enclosed in
 anonymous functions.
 
 ```
->def f(a) a*a + a*a
+> def f(a) a*a + a*a
 
 define double @f(double %a) {
 entry:
@@ -1682,11 +1611,11 @@ But more complicated cases are not handled. We will add optimization
 in the next chapter. Here you also can see how did LLVM use our names hints.
 
 ```
->extern cos(x)
+> extern cos(x)
 
 declare double @cos(double)
 
->cos(1)
+> cos(1)
 
 define double @1() {
 entry:
@@ -1699,7 +1628,7 @@ LLVM can generate a call to extern function. We will see that we
 really can call standard functions this way later.
 
 ```
->.quit
+> .quit
 ; ModuleID = 'main'
 
 define double @0() {
@@ -1727,6 +1656,9 @@ entry:
 On exit our REPL dumps all the produced LLVM IR.
 
 ## JIT and optimizer support
+
+**NOTE: this chapter is outdated, its rewriting is work in progress, for working JIT-compiler code see
+[jitter.rs](https://github.com/jauhien/iron-kaleidoscope/blob/master/src/jitter.rs).**
 
 It is time to add JIT compilation and optimization to our REPL and see
 real evaluation of some kaleidoscope expressions.

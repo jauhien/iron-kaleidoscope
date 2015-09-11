@@ -1,79 +1,34 @@
-//< ch-0 ch-1 ch-2
 use std::io;
 use std::io::Write;
-//> ch-0 ch-1
 
 use iron_llvm::core::value::Value;
-//> ch-2
-use iron_llvm::target;
-//< ch-2
 
 use builder;
 use builder::{IRBuilder, ModuleProvider};
-//> ch-2
-use jitter;
-use jitter::JITter;
-//< ch-0 ch-1 ch-2
 use lexer::*;
-//> ch-0
 use parser::*;
 
-//< ch-0
 pub use self::Stage::{
-//> ch-0 ch-1 ch-2
-    Exec,
-//< ch-2
     IR,
-//< ch-1
     AST,
-//< ch-0
     Tokens
 };
 
-//< parser-stage
 #[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
-//> ch-0 ch-1  ch-2 parser-stage
-    Exec,
-//< ch-2
     IR,
-//< ch-1 parser-stage
     AST,
-//< ch-0
     Tokens
 }
-//> parser-stage
 
-//< parser-driver
 pub fn main_loop(stage: Stage) {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut input = String::new();
-//> ch-0
     let mut parser_settings = default_parser_settings();
-//> ch-1  ch-2 parser-driver
-/*
-//< ch-2
     let mut ir_container = builder::SimpleModuleProvider::new("main");
-//> ch-2
-*/
-    let mut ir_container : Box<JITter> = if stage == Exec {
-        target::initilalize_native_target();
-        target::initilalize_native_asm_printer();
-        jitter::init();
-        Box::new(
-            jitter::MCJITter::new("main")
-                )
-    } else {
-        Box::new(
-            builder::SimpleModuleProvider::new("main")
-                )
-    };
-
-//< ch-2
     let mut builder_context = builder::Context::new();
 
-//< ch-0 ch-1 parser-driver
 
     'main: loop {
         print!("> ");
@@ -84,19 +39,16 @@ pub fn main_loop(stage: Stage) {
             break;
         }
 
-//> ch-0
         // the constructed AST
         let mut ast = Vec::new();
         // tokens left from the previous lines
         let mut prev = Vec::new();
-//< ch-0
         loop {
             let tokens = tokenize(input.as_str());
             if stage == Tokens {
                 println!("{:?}", tokens);
                 continue 'main
             }
-//> ch-0
             prev.extend(tokens.into_iter());
 
             let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
@@ -119,46 +71,21 @@ pub fn main_loop(stage: Stage) {
             stdout.flush().unwrap();
             input.clear();
             stdin.read_line(&mut input).ok().expect("Failed to read line");
-//< ch-0
         }
-//> ch-0
 
         if stage == AST {
             println!("{:?}", ast);
             continue
         }
-//> ch-1 parser-driver
 
         match ast.codegen(&mut builder_context,
-//> ch-2
-                          ir_container.get_module_provider()
-/*
-//< ch-2
                           &mut ir_container) {
             Ok((value, _)) => value.dump(),
-//> ch-2
-*/
-                          ) {
-            Ok((value, runnable)) =>
-                if runnable && stage == Exec {
-                    println!("=> {}", ir_container.run_function(value));
-                } else {
-                    value.dump();
-                },
-//< ch-2
             Err(message) => println!("Error occured: {}", message)
         }
-//< ch-0 ch-1 parser-driver
     }
-//> ch-0 ch-1 parser-driver
 
-    if stage == IR
-//> ch-2
-        || stage == Exec
-//< ch-2
-/*jw*/ {
+    if stage == IR {
         ir_container.dump();
     }
-//< ch-0 ch-1 parser-driver
 }
-//> ch-0 ch-1 ch-2 parser-driver
