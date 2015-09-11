@@ -1344,6 +1344,7 @@ impl IRBuilder for parser::Function {
         // the last instruction should be return
         context.builder.build_ret(&body);
 
+        function.verify(LLVMAbortProcessAction);
 
         // clear local variables
         context.named_values.clear();

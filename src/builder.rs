@@ -13,6 +13,7 @@ use llvm_sys::LLVMRealPredicate::
 }
 //< ch-2
 /*j*/;
+use llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction;
 use llvm_sys::core::LLVMDeleteFunction;
 //< ir-context
 use llvm_sys::prelude::LLVMValueRef;
@@ -264,6 +265,7 @@ impl IRBuilder for parser::Function {
         // the last instruction should be return
         context.builder.build_ret(&body);
 
+        function.verify(LLVMAbortProcessAction);
 //> ch-2 ir-function
         module_provider.get_pass_manager().run(&mut function);
 //< ch-2 ir-function
@@ -446,7 +448,7 @@ impl IRBuilder for parser::Expression {
                 let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
 
                 let block = context.builder.get_insert_block();
-                let function = block.get_parent();
+                let mut function = block.get_parent();
                 let mut then_block = function.append_basic_block_in_context(&mut context.context, "then");
                 let mut else_block = function.append_basic_block_in_context(&mut context.context, "else");
                 let mut merge_block = function.append_basic_block_in_context(&mut context.context, "ifcont");
@@ -477,7 +479,7 @@ impl IRBuilder for parser::Expression {
                 let (start_value, _) = try!(start_expr.codegen(context, module_provider));
 
                 let preheader_block = context.builder.get_insert_block();
-                let function = preheader_block.get_parent();
+                let mut function = preheader_block.get_parent();
 
                 let variable = create_entry_block_alloca(context, &function, var_name);
                 context.builder.build_store(start_value, variable);

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::iter;
 
 use llvm_sys::LLVMRealPredicate::LLVMRealOLT;
+use llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction;
 use llvm_sys::core::LLVMDeleteFunction;
 use llvm_sys::prelude::LLVMValueRef;
 
@@ -180,6 +181,7 @@ impl IRBuilder for parser::Function {
         // the last instruction should be return
         context.builder.build_ret(&body);
 
+        function.verify(LLVMAbortProcessAction);
 
         // clear local variables
         context.named_values.clear();
