@@ -168,10 +168,9 @@ impl JITter for MCJITter {
         self.close_current_module();
         let f = unsafe {FunctionRef::from_ref(f)};
         let mut args = vec![];
-        let res = match self.container.borrow().execution_engines.last() {
-            Some(ee) => ee.run_function(&f, args.as_mut_slice()),
-            None => panic!("MCJITter went crazy")
-        };
+        let res = self.container.borrow()
+            .execution_engines.last().expect("MCJITter went crazy")
+            .run_function(&f, args.as_mut_slice());
         let ty = RealTypeRef::get_double();
         res.to_float(&ty)
     }

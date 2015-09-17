@@ -26,7 +26,7 @@ fn main() {
     let stage = if args.flag_l {
         Tokens
     } else if args.flag_i {
-        panic!("not implemented");
+        unimplemented!();
     } else {
         AST
     };

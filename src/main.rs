@@ -42,7 +42,7 @@ fn main() {
 //> ch-1 ch-2
 /*
 //< ch-1
-        panic!("not implemented");
+        unimplemented!();
 //> ch-1
 */
 //< ch-2
@@ -53,7 +53,7 @@ fn main() {
 /*
 //< ch-0
     if args.flag_p || args.flag_i {
-        panic!("not implemented");
+        unimplemented!();
     }
     let stage = Tokens;
 //> ch-0
