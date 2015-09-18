@@ -1,7 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 
 # Call this script from the root of the repo
+cargo clean
+
 for i in `cat chapters/chapters.list`;
 do
-    scripts/generate-chapter.sh $i
+    cd chapters/$i
+    cargo clean
+    cd -
 done
