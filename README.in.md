@@ -31,6 +31,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Top level code generation](#top-level-code-generation)
   * [Expression code generation](#expression-code-generation)
 * [Chapter 3. Optimizer and JIT support](#chapter-3-optimizer-and-jit-support)
+  * [LLVM Optimization passes](#llvm-optimization-passes)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
@@ -915,6 +916,108 @@ entry:
 On exit our REPL dumps all the produced LLVM IR.
 
 ## Chapter 3. Optimizer and JIT support
+
+That's time to run our generated code. But before it we'll optimize it a little bit.
+
+### LLVM Optimization Passes
+
+Even without adding any optimization passes IRBuilder does some obvious
+optimization that it can handle based on the local analysis. One of examples is constant folding:
+
+```
+> def text(x) 1+2+x;
+
+define double @text(double %x) {
+entry:
+  %addtmp = fadd double 3.000000e+00, %x
+  ret double %addtmp
+}
+```
+
+Without ability of IRBuilder to do simple optimizations this IR would look like
+
+```
+define double @test(double %x) {
+entry:
+  %addtmp = fadd double 2.000000e+00, 1.000000e+00
+  %addtmp1 = fadd double %addtmp, %x
+  ret double %addtmp1
+}
+```
+
+This is very usefull feature as you do not need to handle constant folding yourself
+in the frontend.
+
+However IRBuilder is unable do any optimizations that demand more then local analysis:
+
+```
+> def test(x) (1+2+x)*(x+(1+2));
+
+define double @test(double %x) {
+entry:
+  %addtmp = fadd double 3.000000e+00, %x
+  %addtmp1 = fadd double %x, 3.000000e+00
+  %multmp = fmul double %addtmp, %addtmp1
+  ret double %multmp
+}
+```
+
+Here we would like to have RHS and LHS of multiplication to be computed
+only once.
+
+LLVM provides a general framework for optimization -- LLVM optimization passes.
+Pass is analysis or transformation applied to IR. LLVM has two different pass scopes
+(and two pass managers) -- function passes and whole module passes.
+Function passmanager runs passes that operate on a single function at a time
+(global optimization passes), module pass manager runs passes that have the whole module
+as their input (interprocedural optimization passes). For more information
+see [howto](http://llvm.org/docs/WritingAnLLVMPass.html) and [list of implemented
+passes](http://llvm.org/docs/Passes.html).
+
+We'll use function pass manager to run some optimizations on our functions
+when they are completely generated. We'll create pass manager together with module
+and apply its passes when function generation is complete.
+
+Function pass manager initialization is straightforward:
+
+```rust
+<<<src/builder.rs:jit-fpm>>>
+```
+
+We create module and attached function pass manager to it. Then we
+add a series of passes. The first one is analysis the other four are
+transformation. These passes should reasonably cleanup and reorganize
+generated IR.
+
+We'll store function pass manager togerther with module in our `SimpleModuleProvider`
+(also we'll change the `ModuleProvider` trait):
+
+```rust
+<<<src/builder.rs:jit-mp>>>
+```
+
+Now we run our passes on every created function before return it:
+
+```rust
+<<<src/builder.rs:jit-run-passes>>>
+```
+
+We can try to run our example again and see if optimization helps:
+
+```
+> def test(x) (1+2+x)*(x+(1+2));
+
+define double @test(double %x) {
+entry:
+  %addtmp = fadd double %x, 3.000000e+00
+  %multmp = fmul double %addtmp, %addtmp
+  ret double %multmp
+}
+```
+
+Nice, it works and does what we'd expected.
+
+You can experiment with different passes using `opt` command line tool.
 
 ## Extending Kaleidoscope: control flow
 

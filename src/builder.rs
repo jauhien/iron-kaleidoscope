@@ -63,7 +63,7 @@ impl Context {
 }
 //> ir-context
 
-//< ir-module-provider
+//< ir-module-provider jit-mp
 pub trait ModuleProvider {
     fn dump(&self);
     fn get_module(&mut self) -> &mut core::Module;
@@ -72,13 +72,15 @@ pub trait ModuleProvider {
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager;
 //< ch-2 ir-module-provider
 }
-//> ch-2 ir-module-provider
+//> ch-2 ir-module-provider jit-mp
 
+//< jit-fpm
 pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
     let module = core::Module::new(name);
     let mut function_passmanager = core::FunctionPassManager::new(&module);
-    function_passmanager.add_verifier_pass();
+//> jit-fpm
     function_passmanager.add_promote_memory_to_register_pass();
+//< jit-fpm
     function_passmanager.add_basic_alias_analysis_pass();
     function_passmanager.add_instruction_combining_pass();
     function_passmanager.add_reassociate_pass();
@@ -88,7 +90,8 @@ pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
 
     (module, function_passmanager)
 }
-//< ch-2 ir-module-provider
+//> jit-fpm
+//< ch-2 ir-module-provider jit-mp
 
 pub struct SimpleModuleProvider {
 //> ch-2 ir-module-provider
@@ -101,12 +104,13 @@ impl SimpleModuleProvider {
     pub fn new(name: &str) -> SimpleModuleProvider {
 //> ch-2 ir-module-provider
         let (module, function_passmanager) = new_module(name);
+//> jit-mp
 /*
 //< ch-2 ir-module-provider
         let module = core::Module::new(name);
 //> ch-2 ir-module-provider
 */
-//< ch-2 ir-module-provider
+//< ch-2 ir-module-provider jit-mp
 
         SimpleModuleProvider {
 //> ch-2 ir-module-provider
@@ -139,7 +143,7 @@ impl ModuleProvider for SimpleModuleProvider {
     }
 //< ch-2 ir-module-provider
 }
-//> ir-module-provider
+//> ir-module-provider jit-mp
 
 //< ir-builder-trait
 pub type IRBuildingResult = Result<(LLVMValueRef, bool), String>;
@@ -251,6 +255,7 @@ impl IRBuilder for parser::Function {
 //< ch-2 ir-function
         }
 
+//< jit-run-passes
         // emit function body
         // if error occured, remove the function, so user can
         // redefine it
@@ -275,7 +280,7 @@ impl IRBuilder for parser::Function {
         Ok((function.to_ref(), self.prototype.name.as_str() == ""))
     }
 }
-//> ch-2 ir-function
+//> ch-2 ir-function jit-run-passes
 
 fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
     let mut builder = core::Builder::new();
