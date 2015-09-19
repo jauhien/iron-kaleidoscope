@@ -1152,18 +1152,24 @@ Note, that we dump already compiled modules first and then our currently open mo
 
 `get_function` is a little bit more complicated as we need to look in already compiled modules first.
 If we find already declared/defined function in one of the old modules, we look
-for a prototype in the current module. If we find not a prototype, but a declaration, we have
+for a prototype in the current module. If we find not a prototype, but a definition (and
+we have one definition already), we have
 some error, as it should not be possible to redefine functions across modules. If prototype
 exists, we can return it. Our symbol resolution code will handle linking correctly.
 
-If no prototype in the current module is available, we need to create and return one.
+If no prototype in the current module is available, we need to create one.
 To create it we need the function type. Note, that `get_type` on function returns
 type `() -> F`, where `F` is our real function type, so we need to call `get_return_type`
 on the returned value. Also these methods are not especially friendly in my current bindings,
 so we need to change reference type by hand (I hope to fix this).
 
+If we've found or created
+only prototypes (in old module in the current one) we continue loop, as we want to find the
+definition if it exists.
+
 If no function in previous modules is found, we look in the current one as we did in previous
-chapter (in `SimpleModuleProvider`).
+chapter (in `SimpleModuleProvider`). It also will handle the case when only prototypes were
+found, as one will be created in the current module.
 
 Code for `get_function` follows:
 

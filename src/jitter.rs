@@ -158,8 +158,8 @@ impl builder::ModuleProvider for MCJITter {
 
             let proto = match self.current_module.get_function_by_name(name) {
                 Some(f) => {
-                    if f.count_basic_blocks() != 0 {
-                        panic!("redefinition of function across modules".to_string())
+                    if funct.count_basic_blocks() != 0 && f.count_basic_blocks() != 0 {
+                        panic!("redefinition of function across modules")
                     }
                     f
                 },
@@ -171,7 +171,9 @@ impl builder::ModuleProvider for MCJITter {
                 }
             };
 
-            return Some((proto, funct.count_basic_blocks() > 0))
+            if funct.count_basic_blocks() > 0 {
+                return Some((proto, true))
+            }
         }
 
         match self.current_module.get_function_by_name(name) {
