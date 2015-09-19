@@ -2476,6 +2476,9 @@ attributes #0 = { "no-frame-pointer-elim"="false" }
 ; ModuleID = 'main'
 ```
 
+Full code for this chapter is available
+[here](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/3).
+
 ## Extending Kaleidoscope: control flow
 
 ## Extending Kaleidoscope: user-defined operators

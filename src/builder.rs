@@ -1,17 +1,17 @@
-//< ch-2 ir-context
+//< ch-2 ch-3 ir-context
 use std::collections::HashMap;
 //> ir-context
 use std::iter;
 
 use llvm_sys::LLVMRealPredicate::
-//> ch-2
+//> ch-2 ch-3
 {
       LLVMRealONE,
-//< ch-2
+//< ch-2 ch-3
 /*j*/ LLVMRealOLT
-//> ch-2
+//> ch-2 ch-3
 }
-//< ch-2
+//< ch-2 ch-3
 /*j*/;
 use llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction;
 use llvm_sys::core::LLVMDeleteFunction;
@@ -19,10 +19,10 @@ use llvm_sys::core::LLVMDeleteFunction;
 use llvm_sys::prelude::LLVMValueRef;
 
 use iron_llvm::core;
-//> ch-2 ir-context
+//> ch-2 ch-3 ir-context
 use iron_llvm::core::basic_block::{BasicBlock};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
-//< ch-2
+//< ch-2 ch-3
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value, RealConstRef, RealConstCtor};
 //< ir-context
 use iron_llvm::core::types::{
@@ -78,9 +78,9 @@ pub trait ModuleProvider {
 pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
     let module = core::Module::new(name);
     let mut function_passmanager = core::FunctionPassManager::new(&module);
-//> jit-fpm
+//> ch-3 jit-fpm
     function_passmanager.add_promote_memory_to_register_pass();
-//< jit-fpm
+//< ch-3 jit-fpm
     function_passmanager.add_basic_alias_analysis_pass();
     function_passmanager.add_instruction_combining_pass();
     function_passmanager.add_reassociate_pass();
@@ -104,13 +104,13 @@ impl SimpleModuleProvider {
     pub fn new(name: &str) -> SimpleModuleProvider {
 //> ch-2 ir-module-provider
         let (module, function_passmanager) = new_module(name);
-//> jit-mp
+//> ch-3 jit-mp
 /*
 //< ch-2 ir-module-provider
         let module = core::Module::new(name);
 //> ch-2 ir-module-provider
 */
-//< ch-2 ir-module-provider jit-mp
+//< ch-2 ch-3 ir-module-provider jit-mp
 
         SimpleModuleProvider {
 //> ch-2 ir-module-provider
@@ -243,16 +243,16 @@ impl IRBuilder for parser::Function {
 
         // set function parameters
         for (param, arg) in function.params_iter().zip(&self.prototype.args) {
-//> ch-2 ir-function
+//> ch-2 ch-3 ir-function
             let arg_alloca = create_entry_block_alloca(context, &function, arg);
             context.builder.build_store(param.to_ref(), arg_alloca);
             context.named_values.insert(arg.clone(), arg_alloca);
             /*
-//< ch-2 ir-function
+//< ch-2 ch-3 ir-function
             context.named_values.insert(arg.clone(), param.to_ref());
-//> ch-2 ir-function
+//> ch-2 ch-3 ir-function
             */
-//< ch-2 ir-function
+//< ch-2 ch-3 ir-function
         }
 
 //< jit-run-passes
@@ -271,16 +271,16 @@ impl IRBuilder for parser::Function {
         context.builder.build_ret(&body);
 
         function.verify(LLVMAbortProcessAction);
-//> ch-2 ir-function
+//> ch-2 ch-3 ir-function
         module_provider.get_pass_manager().run(&mut function);
-//< ch-2 ir-function
+//< ch-2 ch-3 ir-function
 
         // clear local variables
         context.named_values.clear();
         Ok((function.to_ref(), self.prototype.name.as_str() == ""))
     }
 }
-//> ch-2 ir-function jit-run-passes
+//> ch-2 ch-3 ir-function jit-run-passes
 
 fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
     let mut builder = core::Builder::new();
@@ -291,7 +291,7 @@ fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_
 }
 
 
-//< ch-2 ir-expression
+//< ch-2 ch-3 ir-expression
 impl IRBuilder for parser::Expression {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
@@ -308,20 +308,20 @@ impl IRBuilder for parser::Expression {
             &parser::VariableExpr(ref name) => {
                 match context.named_values.get(name) {
                     Some(value) => {
-//> ch-2 ir-expression ir-variable
+//> ch-2 ch-3 ir-expression ir-variable
                         let var = context.builder.build_load(*value, name);
                         Ok((var, false))
 /*
-//< ch-2 ir-expression ir-variable
+//< ch-2 ch-3 ir-expression ir-variable
                         Ok((*value, false))
-//> ch-2 ir-expression ir-variable
+//> ch-2 ch-3 ir-expression ir-variable
 */
-//< ch-2 ir-expression ir-variable
+//< ch-2 ch-3 ir-expression ir-variable
                     },
                     None => error("unknown variable name")
                 }
             },
-//> ch-2 ir-expression ir-variable
+//> ch-2 ch-3 ir-expression ir-variable
 
 
             &parser::UnaryExpr(ref operator, ref operand) => {
@@ -340,12 +340,12 @@ impl IRBuilder for parser::Expression {
                                                 "unop"),
                     false))
             },
-//< ch-2 ir-expression
+//< ch-2 ch-3 ir-expression
 
 
 //< ir-binary
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-//> ch-2 ir-expression ir-binary
+//> ch-2 ch-3 ir-expression ir-binary
 
                 if name.as_str() == "=" {
                     let var_name = match **lhs {
@@ -365,7 +365,7 @@ impl IRBuilder for parser::Expression {
                     return Ok((value, false))
                 }
 
-//< ch-2 ir-expression ir-binary
+//< ch-2 ch-3 ir-expression ir-binary
                 let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
                 let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
 
@@ -394,11 +394,11 @@ impl IRBuilder for parser::Expression {
                                                            "booltmp"),
                             false))
                     },
-//> ch-2 ir-expression ir-binary
+//> ch-2 ch-3 ir-expression ir-binary
 /*
-//< ch-2 ir-expression ir-binary
+//< ch-2 ch-3 ir-expression ir-binary
                     _ => error("invalid binary operator")
-//> ch-2 ir-expression ir-binary
+//> ch-2 ch-3 ir-expression ir-binary
 */
                     op => {
                         let name = "binary".to_string() + op;
@@ -415,13 +415,13 @@ impl IRBuilder for parser::Expression {
                                                        "binop"),
                             false))
                     }
-//< ch-2 ir-expression ir-binary
+//< ch-2 ch-3 ir-expression ir-binary
                 }
             },
-//> ch-2 ir-binary
+//> ch-2 ch-3 ir-binary
 
 
-//< ch-2 ir-call
+//< ch-2 ch-3 ir-call
             &parser::CallExpr(ref name, ref args) => {
                 let (function, _) = match module_provider.get_function(name) {
                     Some(function) => function,
@@ -443,7 +443,7 @@ impl IRBuilder for parser::Expression {
                                                "calltmp"),
                     false))
             }
-//> ch-2 ir-expression ir-call
+//> ch-2 ch-3 ir-expression ir-call
             ,
 
 
@@ -552,8 +552,8 @@ impl IRBuilder for parser::Expression {
 
                 Ok((body_value, false))
             }
-//< ch-2 ir-expression
+//< ch-2 ch-3 ir-expression
         }
     }
 }
-//> ch-2 ir-expression
+//> ch-2 ch-3 ir-expression
