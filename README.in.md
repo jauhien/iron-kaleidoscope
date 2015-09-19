@@ -32,6 +32,8 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Expression code generation](#expression-code-generation)
 * [Chapter 3. Optimizer and JIT support](#chapter-3-optimizer-and-jit-support)
   * [LLVM Optimization passes](#llvm-optimization-passes)
+  * [MCJIT based JIT-compiler](#mcjit-based-jit-compiler)
+  * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
@@ -984,7 +986,7 @@ Function pass manager initialization is straightforward:
 <<<src/builder.rs:jit-fpm>>>
 ```
 
-We create module and attached function pass manager to it. Then we
+We create module and function pass manager associated with it. Then we
 add a series of passes. The first one is analysis the other four are
 transformation. These passes should reasonably cleanup and reorganize
 generated IR.
@@ -1018,6 +1020,340 @@ entry:
 Nice, it works and does what we'd expected.
 
 You can experiment with different passes using `opt` command line tool.
+
+### MCJIT based JIT-compiler
+
+Now as we have reasonable IR generated it is time to compile and run it.
+As we are implementing REPL, we'll use JIT-compiler for compilation.
+There are two JIT-compiler infrastructures in LLVM:
+[MCJIT](http://llvm.org/docs/MCJITDesignAndImplementation.html)
+and [ORC](http://llvm.cc/t/llvmdev-new-jit-api-orcjit/219).
+The second one is newer and nicer, but it lacks C bindings and Rust bindings so far
+(I'm working on fixing it though). In this chapter we will use
+MCJIT as a base for our JIT-compiler.
+
+First of all we'll think about what do we need. That's quite simple: we want to
+generate IR for every entered entity and run top-level expressions (anonymous functions).
+
+Let's define a simple trait for JIT compiler (note, that our compiler will own all
+the modules that we will have):
+
+```rust
+<<<src/jitter.rs:jit-jitter>>>
+```
+
+For IR generation we need a module, so our jit-compiler will be a module provider
+(the `get_module_provider` method was added because of an annoying `rustc` bug:
+you cannot coerce to supertraits). Also we want to run some of generated functions,
+the method `run_function` will do this.
+
+The main object that we'll need is an
+[execution engine](http://llvm.org/docs/doxygen/html/classllvm_1_1ExecutionEngine.html).
+It has all the methods for code generation/function running and can use
+both interpreter and jit-compiler. When it compiles module, it should be frozen and no longer touched.
+We'll need a collection of modules and corresponding execution engines.
+We will compile and close current module when we encounter a top-level expression.
+
+So the plan is simple. Create a module. Fill it with IR. When user enters
+an expression, close the module. Create execution engine. Compile it and evalute the
+expression, showing result to user. Remember module and execution engine and repeat this
+in a loop.
+
+Everything is fine and looks simple. But there is one problem:
+intermodular symbol resolution. By default LLVM resolves symbols only in
+current module (plus loaded libraries). If we will try to call function
+defined in some of previous modules, it will fail to do so. We will
+solve this issue with custom names resolver.
+Also we need to add some code that will generate prototypes for functions
+defined in other modules, so they can be called.
+
+Let's define a container for execution engines and frozen modules first:
+
+```rust
+<<<src/jitter.rs:jit-mc>>>
+```
+
+Now we will define a method for looking for function addresses in already
+compiled modules (if nothing found we are returning zero):
+
+```rust
+<<<src/jitter.rs:jit-mc-address>>>
+```
+
+JIT-compiler itself will contain current open module, associated function pass manager
+and container with already compiled stuff:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter>>>
+```
+
+There is one tricky moment with the container: we make it be internally mutable reference counted
+pointer. We need to do this because we need to provide reference to the container
+to our symbol resolver, which itself will be owned by execution engine. This leads to
+problems with borrow checker that can be solved in the shown way. If you are not familiar with
+mentioned concepts, you can read
+[appropriate chapter](https://doc.rust-lang.org/nightly/book/choosing-your-guarantees.html)
+in the Rust book or consult with [detailed](https://doc.rust-lang.org/nightly/std/rc/index.html)
+[documentation](https://doc.rust-lang.org/nightly/std/cell/index.html).
+
+Now we are going to implement `MCJITter` internal methods. Constructor is trivial:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-ctor>>>
+```
+
+The method for closing current module is where the magic of execution engine creation happens:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-close-module>>>
+```
+
+We create new module and pass manager first. Note the use of `std::mem::replace`,
+so we can move only from one record field.
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-new-module>>>
+```
+
+Then we create a custom memory manager for our execution engine. The symbol resolution
+is just a closure that owns a reference to our modules container. It asks default memory
+manager first, than it looks in already compiled modules:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-mm>>>
+```
+
+Now we can create the execution engine for the current module:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-ee>>>
+```
+
+`create` method returns execution engine and a frozen module.
+
+Finally we update our modules and execution engines container:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-container-update>>>
+```
+
+Now, as we have a method for execution engine creation on module closing
+and know how will our module organization look like, we can proceed with
+implementation of `ModuleProvider` and `JITter` traits.
+
+`dump`, `get_module` and `get_pass_manager` are really simple:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-mp-simple>>>
+```
+
+Note, that we dump already compiled modules first and then our currently open module.
+
+
+`get_function` is a little bit more complicated as we need to look in already compiled modules first.
+If we find already declared/defined function in one of the old modules, we look
+for a prototype in the current module. If we find not a prototype, but a declaration, we have
+some error, as it should not be possible to redefine functions across modules. If prototype
+exists, we can return it. Our symbol resolution code will handle linking correctly.
+
+If no prototype in the current module is available, we need to create and return one.
+To create it we need the function type. Note, that `get_type` on function returns
+type `() -> F`, where `F` is our real function type, so we need to call `get_return_type`
+on the returned value. Also these methods are not especially friendly in my current bindings,
+so we need to change reference type by hand (I hope to fix this).
+
+If no function in previous modules is found, we look in the current one as we did in previous
+chapter (in `SimpleModuleProvider`).
+
+Code for `get_function` follows:
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-mp-gf>>>
+```
+
+Implementation of the `JITter` trait is straightforward.
+For `run_function` we close the current module
+and run the function using the lates execution
+engine (as the function lives in the just
+closed module). That's all. Run function method of execution engine
+compiles code automatically. Already written pieces of code
+ensures that we have all the necessary prototypes and correct
+symbol resolution.
+
+```rust
+<<<src/jitter.rs:jit-mcjitter-jitter>>>
+```
+
+### Changes in the driver and 'built-in' functions
+
+We will make our driver work both with `SimpleModuleProvider` (when only generating IR)
+and with `MCJITter` (when having REPL with jit-compiling). To make it easier,
+we will implement `JITter` trait for `SimpleModuleProvider`:
+
+```rust
+<<<src/jitter.rs:jit-smp>>>
+```
+
+Now we will use an appropriate `ir-container` in the driver and depending on the
+stage and type of expression that user has entered we will dump IR or compile and execute it.
+Also we need to initialize native target for JIT-compiler.
+
+```rust
+<<<src/driver.rs:ch-3>>>
+```
+
+You can see also call of the `init` function that will be explained in a moment, just ignore
+it for a while.
+
+Now we modify the main function appropriately, so it calls the main loop
+for the `Exec` stage by default.
+
+```rust
+<<<src/main.rs:ch-3>>>
+```
+
+Let's see how does it work now:
+
+```
+> 2+2
+=> 4
+> def a(x) x*x+x*x
+
+define double @a(double %x) {
+entry:
+  %multmp = fmul double %x, %x
+  %addtmp = fadd double %multmp, %multmp
+  ret double %addtmp
+}
+
+> a(4)
+=> 32
+> a(3)
+=> 18
+> extern sin(x)
+
+declare double @sin(double)
+
+> sin(1)
+=> 0.8414709848078965
+> sin(0)
+=> 0
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  ret double 4.000000e+00
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @a(double %x) #0 {
+entry:
+  %multmp = fmul double %x, %x
+  %addtmp = fadd double %multmp, %multmp
+  ret double %addtmp
+}
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @a(double 4.000000e+00)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @a(double 3.000000e+00)
+  ret double %calltmp
+}
+
+declare double @a(double) #0
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @sin(double) #0
+
+define double @0() #0 {
+entry:
+  ret double 0x3FEAED548F090CEE
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  ret double 0.000000e+00
+}
+
+declare double @sin(double) #0
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+```
+
+Everything works as great as we expected. Additionaly you can see that we are able
+to use functions from libraries such as `sin`. What more, we can define our own
+'built-in' functions. To this aim we just create normal rust functions and register
+their addresses in LLVM with `add_symbol` function:
+
+```rust
+<<<src/jitter.rs:jit-builtin>>>
+```
+
+That's all, we are able to call rust functions now:
+
+```
+> extern printd(x)
+
+declare double @printd(double)
+
+> printd(10)
+> 10 <
+=> 10
+> extern putchard(x)
+
+declare double @putchard(double)
+
+> putchard(120)
+x=> 120
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @printd(double) #0
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @printd(double 1.000000e+01)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @putchard(double) #0
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @putchard(double 1.200000e+02)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+```
 
 ## Extending Kaleidoscope: control flow
 

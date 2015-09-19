@@ -1,4 +1,4 @@
-//< ch-0 ch-1 ch-2
+//< ch-0 ch-1 ch-2 ch-3
 use std::io;
 use std::io::Write;
 //> ch-0 ch-1
@@ -51,12 +51,13 @@ pub fn main_loop(stage: Stage) {
     let mut input = String::new();
 //> ch-0
     let mut parser_settings = default_parser_settings();
-//> ch-1  ch-2 parser-driver
+//> ch-1 ch-2 ch-3 parser-driver
 /*
 //< ch-2
     let mut ir_container = builder::SimpleModuleProvider::new("main");
 //> ch-2
 */
+//< ch-3
     let mut ir_container : Box<JITter> = if stage == Exec {
         target::initilalize_native_target();
         target::initilalize_native_asm_printer();
@@ -132,13 +133,15 @@ pub fn main_loop(stage: Stage) {
         match ast.codegen(&mut builder_context,
 //> ch-2
                           ir_container.get_module_provider()
+//> ch-3
 /*
 //< ch-2
                           &mut ir_container) {
             Ok((value, _)) => value.dump(),
 //> ch-2
 */
-                          ) {
+//< ch-3
+/*j*/                     ) {
             Ok((value, runnable)) =>
                 if runnable && stage == Exec {
                     println!("=> {}", ir_container.run_function(value));
@@ -154,11 +157,11 @@ pub fn main_loop(stage: Stage) {
 
     if stage == IR
 //> ch-2
-        || stage == Exec
+/*jw*/  || stage == Exec
 //< ch-2
 /*jw*/ {
         ir_container.dump();
     }
 //< ch-0 ch-1 parser-driver
 }
-//> ch-0 ch-1 ch-2 parser-driver
+//> ch-0 ch-1 ch-2 ch-3 parser-driver

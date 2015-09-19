@@ -1,4 +1,4 @@
-//< ch-0 ch-1 ch-2
+//< ch-0 ch-1 ch-2 ch-3
 #![feature(plugin)]
 #![plugin(docopt_macros)]
 
@@ -39,17 +39,17 @@ fn main() {
         AST
 //< ch-1
     } else if args.flag_i {
-//> ch-1 ch-2
+//> ch-1 ch-2 ch-3
 /*
 //< ch-1
         unimplemented!();
 //> ch-1
 */
-//< ch-2
+//< ch-2 ch-3
         IR
 //< ch-1 parser-main
     } else {
-//> ch-1 ch-2 parser-main
+//> ch-1 ch-2 ch-3 parser-main
 /*
 //< ch-0
     if args.flag_p || args.flag_i {
@@ -64,6 +64,7 @@ fn main() {
         IR
 //> ch-2
 */
+//< ch-3
         Exec
 //< ch-1 ch-2 parser-main
     };
@@ -71,4 +72,4 @@ fn main() {
 
     main_loop(stage);
 }
-//> ch-0 ch-1 ch-2 parser-main
+//> ch-0 ch-1 ch-2 ch-3 parser-main

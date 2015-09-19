@@ -32,6 +32,8 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Expression code generation](#expression-code-generation)
 * [Chapter 3. Optimizer and JIT support](#chapter-3-optimizer-and-jit-support)
   * [LLVM Optimization passes](#llvm-optimization-passes)
+  * [MCJIT based JIT-compiler](#mcjit-based-jit-compiler)
+  * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
 * [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
@@ -1729,7 +1731,7 @@ pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
 }
 ```
 
-We create module and attached function pass manager to it. Then we
+We create module and function pass manager associated with it. Then we
 add a series of passes. The first one is analysis the other four are
 transformation. These passes should reasonably cleanup and reorganize
 generated IR.
@@ -1826,6 +1828,653 @@ entry:
 Nice, it works and does what we'd expected.
 
 You can experiment with different passes using `opt` command line tool.
+
+### MCJIT based JIT-compiler
+
+Now as we have reasonable IR generated it is time to compile and run it.
+As we are implementing REPL, we'll use JIT-compiler for compilation.
+There are two JIT-compiler infrastructures in LLVM:
+[MCJIT](http://llvm.org/docs/MCJITDesignAndImplementation.html)
+and [ORC](http://llvm.cc/t/llvmdev-new-jit-api-orcjit/219).
+The second one is newer and nicer, but it lacks C bindings and Rust bindings so far
+(I'm working on fixing it though). In this chapter we will use
+MCJIT as a base for our JIT-compiler.
+
+First of all we'll think about what do we need. That's quite simple: we want to
+generate IR for every entered entity and run top-level expressions (anonymous functions).
+
+Let's define a simple trait for JIT compiler (note, that our compiler will own all
+the modules that we will have):
+
+```rust
+pub trait JITter : builder::ModuleProvider {
+    // TODO: fix https://github.com/rust-lang/rust/issues/5665
+    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider;
+
+    fn run_function(&mut self, f: LLVMValueRef) -> f64;
+}
+```
+
+For IR generation we need a module, so our jit-compiler will be a module provider
+(the `get_module_provider` method was added because of an annoying `rustc` bug:
+you cannot coerce to supertraits). Also we want to run some of generated functions,
+the method `run_function` will do this.
+
+The main object that we'll need is an
+[execution engine](http://llvm.org/docs/doxygen/html/classllvm_1_1ExecutionEngine.html).
+It has all the methods for code generation/function running and can use
+both interpreter and jit-compiler. When it compiles module, it should be frozen and no longer touched.
+We'll need a collection of modules and corresponding execution engines.
+We will compile and close current module when we encounter a top-level expression.
+
+So the plan is simple. Create a module. Fill it with IR. When user enters
+an expression, close the module. Create execution engine. Compile it and evalute the
+expression, showing result to user. Remember module and execution engine and repeat this
+in a loop.
+
+Everything is fine and looks simple. But there is one problem:
+intermodular symbol resolution. By default LLVM resolves symbols only in
+current module (plus loaded libraries). If we will try to call function
+defined in some of previous modules, it will fail to do so. We will
+solve this issue with custom names resolver.
+Also we need to add some code that will generate prototypes for functions
+defined in other modules, so they can be called.
+
+Let's define a container for execution engines and frozen modules first:
+
+```rust
+struct ModulesContainer {
+    execution_engines: Vec<ExecutionEngine>,
+    modules: Vec<FrozenModule>
+}
+```
+
+Now we will define a method for looking for function addresses in already
+compiled modules (if nothing found we are returning zero):
+
+```rust
+impl ModulesContainer {
+    fn get_function_address(&self, name: &str) -> u64 {
+        for ee in &self.execution_engines {
+            let addr = ee.get_function_address(name);
+            if addr != 0 {
+                return addr;
+            }
+        }
+
+        0
+    }
+}
+```
+
+JIT-compiler itself will contain current open module, associated function pass manager
+and container with already compiled stuff:
+
+```rust
+pub struct MCJITter {
+    module_name: String,
+    current_module: core::Module,
+    function_passmanager: core::FunctionPassManager,
+
+    container: Rc<RefCell<ModulesContainer>>
+}
+```
+
+There is one tricky moment with the container: we make it be internally mutable reference counted
+pointer. We need to do this because we need to provide reference to the container
+to our symbol resolver, which itself will be owned by execution engine. This leads to
+problems with borrow checker that can be solved in the shown way. If you are not familiar with
+mentioned concepts, you can read
+[appropriate chapter](https://doc.rust-lang.org/nightly/book/choosing-your-guarantees.html)
+in the Rust book or consult with [detailed](https://doc.rust-lang.org/nightly/std/rc/index.html)
+[documentation](https://doc.rust-lang.org/nightly/std/cell/index.html).
+
+Now we are going to implement `MCJITter` internal methods. Constructor is trivial:
+
+```rust
+    pub fn new(name: &str) -> MCJITter {
+        let (current_module, function_passmanager) = builder::new_module(name);
+
+        MCJITter {
+            module_name: String::from(name),
+            current_module: current_module,
+            function_passmanager: function_passmanager,
+
+            container: Rc::new(RefCell::new(ModulesContainer {
+                execution_engines: vec![],
+                modules: vec![]
+            }))
+        }
+    }
+```
+
+The method for closing current module is where the magic of execution engine creation happens:
+
+```rust
+    fn close_current_module(& mut self) {
+        let (new_module, new_function_passmanager) = builder::new_module(&self.module_name);
+        self.function_passmanager = new_function_passmanager;
+        let current_module = std::mem::replace(&mut self.current_module, new_module);
+
+        let container = self.container.clone();
+        let memory_manager = BindingSectionMemoryManagerBuilder::new()
+            .set_get_symbol_address(move |mut parent_mm, name| {
+                let addr = parent_mm.get_symbol_address(name);
+                if addr != 0 {
+                    return addr;
+                }
+
+                container.borrow().get_function_address(name)
+            })
+            .create();
+
+        let (execution_engine, module) = match MCJITBuilder::new()
+            .set_mcjit_memory_manager(Box::new(memory_manager))
+            .create(current_module) {
+                Ok((ee, module)) => (ee, module),
+                Err(msg) => panic!(msg)
+            };
+
+        self.container.borrow_mut().execution_engines.push(execution_engine);
+        self.container.borrow_mut().modules.push(module);
+    }
+```
+
+We create new module and pass manager first. Note the use of `std::mem::replace`,
+so we can move only from one record field.
+
+```rust
+        let (new_module, new_function_passmanager) = builder::new_module(&self.module_name);
+        self.function_passmanager = new_function_passmanager;
+        let current_module = std::mem::replace(&mut self.current_module, new_module);
+```
+
+Then we create a custom memory manager for our execution engine. The symbol resolution
+is just a closure that owns a reference to our modules container. It asks default memory
+manager first, than it looks in already compiled modules:
+
+```rust
+        let container = self.container.clone();
+        let memory_manager = BindingSectionMemoryManagerBuilder::new()
+            .set_get_symbol_address(move |mut parent_mm, name| {
+                let addr = parent_mm.get_symbol_address(name);
+                if addr != 0 {
+                    return addr;
+                }
+
+                container.borrow().get_function_address(name)
+            })
+            .create();
+```
+
+Now we can create the execution engine for the current module:
+
+```rust
+        let (execution_engine, module) = match MCJITBuilder::new()
+            .set_mcjit_memory_manager(Box::new(memory_manager))
+            .create(current_module) {
+                Ok((ee, module)) => (ee, module),
+                Err(msg) => panic!(msg)
+            };
+```
+
+`create` method returns execution engine and a frozen module.
+
+Finally we update our modules and execution engines container:
+
+```rust
+        self.container.borrow_mut().execution_engines.push(execution_engine);
+        self.container.borrow_mut().modules.push(module);
+```
+
+Now, as we have a method for execution engine creation on module closing
+and know how will our module organization look like, we can proceed with
+implementation of `ModuleProvider` and `JITter` traits.
+
+`dump`, `get_module` and `get_pass_manager` are really simple:
+
+```rust
+    fn dump(&self) {
+        for module in self.container.borrow().modules.iter() {
+            module.get().dump()
+        }
+        self.current_module.dump();
+    }
+
+    fn get_module(&mut self) -> &mut core::Module {
+        &mut self.current_module
+    }
+    fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
+        &mut self.function_passmanager
+    }
+```
+
+Note, that we dump already compiled modules first and then our currently open module.
+
+
+`get_function` is a little bit more complicated as we need to look in already compiled modules first.
+If we find already declared/defined function in one of the old modules, we look
+for a prototype in the current module. If we find not a prototype, but a declaration, we have
+some error, as it should not be possible to redefine functions across modules. If prototype
+exists, we can return it. Our symbol resolution code will handle linking correctly.
+
+If no prototype in the current module is available, we need to create and return one.
+To create it we need the function type. Note, that `get_type` on function returns
+type `() -> F`, where `F` is our real function type, so we need to call `get_return_type`
+on the returned value. Also these methods are not especially friendly in my current bindings,
+so we need to change reference type by hand (I hope to fix this).
+
+If no function in previous modules is found, we look in the current one as we did in previous
+chapter (in `SimpleModuleProvider`).
+
+Code for `get_function` follows:
+
+```rust
+    fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
+        for module in &self.container.borrow().modules {
+            let funct = match module.get().get_function_by_name(name) {
+                Some(f) => {
+                    f
+                },
+                None => continue
+            };
+
+            let proto = match self.current_module.get_function_by_name(name) {
+                Some(f) => {
+                    if f.count_basic_blocks() != 0 {
+                        panic!("redefinition of function across modules".to_string())
+                    }
+                    f
+                },
+                None => {
+                    // TODO: fix iron-llvm get_type
+                    let fty = unsafe { FunctionTypeRef::from_ref(funct.get_type().to_ref()) };
+                    let fty = unsafe { FunctionTypeRef::from_ref(fty.get_return_type().to_ref()) };
+                    FunctionRef::new(&mut self.current_module, name, &fty)
+                }
+            };
+
+            return Some((proto, funct.count_basic_blocks() > 0))
+        }
+
+        match self.current_module.get_function_by_name(name) {
+            Some(f) => Some((f, f.count_basic_blocks() > 0)),
+            None => None
+        }
+    }
+```
+
+Implementation of the `JITter` trait is straightforward.
+For `run_function` we close the current module
+and run the function using the lates execution
+engine (as the function lives in the just
+closed module). That's all. Run function method of execution engine
+compiles code automatically. Already written pieces of code
+ensures that we have all the necessary prototypes and correct
+symbol resolution.
+
+```rust
+impl JITter for MCJITter {
+    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+        self
+    }
+
+    fn run_function(&mut self, f: LLVMValueRef) -> f64 {
+        self.close_current_module();
+        let f = unsafe {FunctionRef::from_ref(f)};
+        let mut args = vec![];
+        let res = self.container.borrow()
+            .execution_engines.last().expect("MCJITter went crazy")
+            .run_function(&f, args.as_mut_slice());
+        let ty = RealTypeRef::get_double();
+        res.to_float(&ty)
+    }
+}
+```
+
+### Changes in the driver and 'built-in' functions
+
+We will make our driver work both with `SimpleModuleProvider` (when only generating IR)
+and with `MCJITter` (when having REPL with jit-compiling). To make it easier,
+we will implement `JITter` trait for `SimpleModuleProvider`:
+
+```rust
+impl JITter for builder::SimpleModuleProvider {
+    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+        self
+    }
+
+    fn run_function(&mut self, _f: LLVMValueRef) -> f64 {
+        panic!("not implemented (and will not be)")
+    }
+}
+```
+
+Now we will use an appropriate `ir-container` in the driver and depending on the
+stage and type of expression that user has entered we will dump IR or compile and execute it.
+Also we need to initialize native target for JIT-compiler.
+
+```rust
+use std::io;
+use std::io::Write;
+
+use iron_llvm::core::value::Value;
+use iron_llvm::target;
+
+use builder;
+use builder::{IRBuilder, ModuleProvider};
+use jitter;
+use jitter::JITter;
+use lexer::*;
+use parser::*;
+
+pub use self::Stage::{
+    Exec,
+    IR,
+    AST,
+    Tokens
+};
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum Stage {
+    Exec,
+    IR,
+    AST,
+    Tokens
+}
+
+pub fn main_loop(stage: Stage) {
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+    let mut input = String::new();
+    let mut parser_settings = default_parser_settings();
+    let mut ir_container : Box<JITter> = if stage == Exec {
+        target::initilalize_native_target();
+        target::initilalize_native_asm_printer();
+        jitter::init();
+        Box::new(
+            jitter::MCJITter::new("main")
+                )
+    } else {
+        Box::new(
+            builder::SimpleModuleProvider::new("main")
+                )
+    };
+
+    let mut builder_context = builder::Context::new();
+
+
+    'main: loop {
+        print!("> ");
+        stdout.flush().unwrap();
+        input.clear();
+        stdin.read_line(&mut input).ok().expect("Failed to read line");
+        if input.as_str() == ".quit\n" {
+            break;
+        }
+
+        // the constructed AST
+        let mut ast = Vec::new();
+        // tokens left from the previous lines
+        let mut prev = Vec::new();
+        loop {
+            let tokens = tokenize(input.as_str());
+            if stage == Tokens {
+                println!("{:?}", tokens);
+                continue 'main
+            }
+            prev.extend(tokens.into_iter());
+
+            let parsing_result = parse(prev.as_slice(), ast.as_slice(), &mut parser_settings);
+            match parsing_result {
+                Ok((parsed_ast, rest)) => {
+                    ast.extend(parsed_ast.into_iter());
+                    if rest.is_empty() {
+                        // we have parsed a full expression
+                        break
+                    } else {
+                        prev = rest;
+                    }
+                },
+                Err(message) => {
+                    println!("Error occured: {}", message);
+                    continue 'main
+                }
+            }
+            print!(". ");
+            stdout.flush().unwrap();
+            input.clear();
+            stdin.read_line(&mut input).ok().expect("Failed to read line");
+        }
+
+        if stage == AST {
+            println!("{:?}", ast);
+            continue
+        }
+
+        match ast.codegen(&mut builder_context,
+                          ir_container.get_module_provider()) {
+            Ok((value, runnable)) =>
+                if runnable && stage == Exec {
+                    println!("=> {}", ir_container.run_function(value));
+                } else {
+                    value.dump();
+                },
+            Err(message) => println!("Error occured: {}", message)
+        }
+    }
+
+    if stage == IR || stage == Exec {
+        ir_container.dump();
+    }
+}
+```
+
+You can see also call of the `init` function that will be explained in a moment, just ignore
+it for a while.
+
+Now we modify the main function appropriately, so it calls the main loop
+for the `Exec` stage by default.
+
+```rust
+#![feature(plugin)]
+#![plugin(docopt_macros)]
+
+extern crate rustc_serialize;
+extern crate docopt;
+
+extern crate iron_kaleidoscope;
+
+use iron_kaleidoscope::driver::{main_loop,
+                                Exec,
+                                IR,
+                                AST,
+                                Tokens
+};
+
+docopt!(Args, "
+Usage: iron_kaleidoscope [(-l | -p | -i)]
+
+Options:
+    -l  Run only lexer and show its output.
+    -p  Run only parser and show its output.
+    -i  Run only IR builder and show its output.
+");
+
+fn main() {
+    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+
+    let stage = if args.flag_l {
+        Tokens
+    } else if args.flag_p {
+        AST
+    } else if args.flag_i {
+        IR
+    } else {
+        Exec
+    };
+
+    main_loop(stage);
+}
+```
+
+Let's see how does it work now:
+
+```
+> 2+2
+=> 4
+> def a(x) x*x+x*x
+
+define double @a(double %x) {
+entry:
+  %multmp = fmul double %x, %x
+  %addtmp = fadd double %multmp, %multmp
+  ret double %addtmp
+}
+
+> a(4)
+=> 32
+> a(3)
+=> 18
+> extern sin(x)
+
+declare double @sin(double)
+
+> sin(1)
+=> 0.8414709848078965
+> sin(0)
+=> 0
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  ret double 4.000000e+00
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @a(double %x) #0 {
+entry:
+  %multmp = fmul double %x, %x
+  %addtmp = fadd double %multmp, %multmp
+  ret double %addtmp
+}
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @a(double 4.000000e+00)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @a(double 3.000000e+00)
+  ret double %calltmp
+}
+
+declare double @a(double) #0
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @sin(double) #0
+
+define double @0() #0 {
+entry:
+  ret double 0x3FEAED548F090CEE
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+define double @0() #0 {
+entry:
+  ret double 0.000000e+00
+}
+
+declare double @sin(double) #0
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+```
+
+Everything works as great as we expected. Additionaly you can see that we are able
+to use functions from libraries such as `sin`. What more, we can define our own
+'built-in' functions. To this aim we just create normal rust functions and register
+their addresses in LLVM with `add_symbol` function:
+
+```rust
+pub extern fn printd(x: f64) -> f64 {
+    println!("> {} <", x);
+    x
+}
+
+pub extern fn putchard(x: f64) -> f64 {
+    print!("{}", x as u8 as char);
+    x
+}
+
+pub fn init() {
+    unsafe {
+        add_symbol("printd", printd as *const ());
+        add_symbol("putchard", putchard as *const ());
+    }
+}
+```
+
+That's all, we are able to call rust functions now:
+
+```
+> extern printd(x)
+
+declare double @printd(double)
+
+> printd(10)
+> 10 <
+=> 10
+> extern putchard(x)
+
+declare double @putchard(double)
+
+> putchard(120)
+x=> 120
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @printd(double) #0
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @printd(double 1.000000e+01)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @putchard(double) #0
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @putchard(double 1.200000e+02)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+```
 
 ## Extending Kaleidoscope: control flow
 
