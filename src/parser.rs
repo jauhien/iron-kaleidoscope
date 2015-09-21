@@ -62,23 +62,24 @@ pub struct Prototype {
 }
 //> parser-defproto
 
-//< parser-expr
+//< parser-expr if-parser
 #[derive(PartialEq, Clone, Debug)]
 pub enum Expression {
     LiteralExpr(f64),
     VariableExpr(String),
-//> ch-1 parser-expr
+//> ch-1 parser-expr if-parser
     UnaryExpr(String, Box<Expression>),
-//< ch-1 parser-expr
+//< ch-1 parser-expr if-parser
     BinaryExpr(String, Box<Expression>, Box<Expression>),
 //> ch-1 parser-expr
     ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
+//> if-parser
     LoopExpr{var_name: String, start_expr: Box<Expression>, end_expr: Box<Expression>, step_expr: Box<Expression>, body_expr: Box<Expression>},
     VarExpr{vars: Vec<(String, Expression)>, body_expr: Box<Expression>},
-//< ch-1 parser-expr
+//< ch-1 parser-expr if-parser
     CallExpr(String, Vec<Expression>)
 }
-//> ch-1 parser-expr
+//> ch-1 parser-expr if-parser
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum FunctionType {
@@ -344,6 +345,7 @@ fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
     Good(FunctionNode(lambda), parsed_tokens)
 }
 //> parser-parse-expression
+//< if-parser
 
 //< parser-parse-primary-expr
 fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
@@ -352,16 +354,17 @@ fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) 
         Some(&Number(_)) => parse_literal_expr(tokens, settings),
 //> ch-1 parser-parse-primary-expr
         Some(&If) => parse_conditional_expr(tokens, settings),
+//> if-parser
         Some(&For) => parse_loop_expr(tokens, settings),
         Some(&Var) => parse_var_expr(tokens, settings),
         Some(&Operator(_)) => parse_unary_expr(tokens, settings),
-//< ch-1 parser-parse-primary-expr
+//< ch-1 parser-parse-primary-expr if-parser
         Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
         None => return NotComplete,
         _ => error("unknow token when expecting an expression")
     }
 }
-//> parser-parse-primary-expr
+//> parser-parse-primary-expr if-parser
 
 //< parser-parse-ident-expr
 fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
@@ -475,6 +478,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
     Good(result, parsed_tokens)
 }
 //> ch-1 parser-parse-binary-expr
+//< if-parser
 
 fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();
@@ -493,6 +497,7 @@ fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettin
 
     Good(ConditionalExpr{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
 }
+//> if-parser
 
 fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();

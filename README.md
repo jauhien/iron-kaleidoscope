@@ -34,7 +34,9 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [LLVM Optimization passes](#llvm-optimization-passes)
   * [MCJIT based JIT-compiler](#mcjit-based-jit-compiler)
   * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
-* [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
+* [Chapter 4. Extending Kaleidoscope: control flow](#chapter-4-extending-kaleidoscope-control-flow)
+  * [If/Then/Else](#ifthenelse)
+    * [Lexer and parser changes for /if/then/else](#lexer-and-parser-changes-for-ifthenelse)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -2487,7 +2489,161 @@ attributes #0 = { "no-frame-pointer-elim"="false" }
 Full code for this chapter is available
 [here](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/3).
 
-## Extending Kaleidoscope: control flow
+## Chapter 4. Extending Kaleidoscope: control flow
+
+We have created a general framework for simple REPL based language implementation.
+It's time to add some Turing completeness to our language now.
+
+### If/Then/Else
+
+Let's see how easy it is to extend our implementation. The first thing that
+we'll add is conditional branching. If/then/else construct will be
+an expression (like everything in the Kaleidoscope language) with value
+corresponding to the taken branch. We will consider `0.0` as `false` and
+any other value as `true`.
+
+What we finally want to have is something like
+
+```
+def fib(x)
+  if x < 3 then
+    1
+  else
+    fib(x-1)+fib(x-2);
+```
+
+We will evaluate only one branch (this is important, as we can have side effects in our code).
+
+#### Lexer and parser changes for /if/then/else
+
+Let's start from formal grammar definition (only the relevant part of the grammar is shown):
+
+```{.ebnf .notation}
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr | conditional_expr];
+conditional_expr : If expression Then expression Else expression;
+```
+
+where `If`, `Then`, `Else` are new tokens that we're going to add to the lexer:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Token {
+    Def,
+    Extern,
+    If,
+    Then,
+    Else,
+    Delimiter, //';' character
+    OpeningParenthesis,
+    ClosingParenthesis,
+    Comma,
+    Ident(String),
+    Number(f64),
+    Operator(String)
+}
+
+pub fn tokenize(input: &str) -> Vec<Token> {
+    // regex for commentaries (start with #, end with the line end)
+    let comment_re = regex!(r"(?m)#.*\n");
+    // remove commentaries from the input stream
+    let preprocessed = comment_re.replace_all(input, "\n");
+
+    let mut result = Vec::new();
+
+    // regex for token, just union of straightforward regexes for different token types
+    // operators are parsed the same way as identifier and separated later
+    let token_re = regex!(concat!(
+        r"(?P<ident>\p{Alphabetic}\w*)|",
+        r"(?P<number>\d+\.?\d*)|",
+        r"(?P<delimiter>;)|",
+        r"(?P<oppar>\()|",
+        r"(?P<clpar>\))|",
+        r"(?P<comma>,)|",
+        r"(?P<operator>\S)"));
+
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
+        let token = if cap.name("ident").is_some() {
+            match cap.name("ident").unwrap() {
+                "def" => Def,
+                "extern" => Extern,
+                "if" => If,
+                "then" => Then,
+                "else" => Else,
+                ident => Ident(ident.to_string())
+            }
+        } else if cap.name("number").is_some() {
+            match cap.name("number").unwrap().parse() {
+                Ok(number) => Number(number),
+                Err(_) => panic!("Lexer failed trying to parse number")
+            }
+        } else if cap.name("delimiter").is_some() {
+            Delimiter
+        } else if cap.name("oppar").is_some() {
+            OpeningParenthesis
+        } else if cap.name("clpar").is_some() {
+            ClosingParenthesis
+        } else if cap.name("comma").is_some() {
+            Comma
+        } else {
+            Operator(cap.name("operator").unwrap().to_string())
+        };
+
+        result.push(token)
+    }
+
+    result
+}
+```
+
+Lexer extension is completely staightforward, parser is not much more complicated:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Expression {
+    LiteralExpr(f64),
+    VariableExpr(String),
+    BinaryExpr(String, Box<Expression>, Box<Expression>),
+    ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
+    CallExpr(String, Vec<Expression>)
+}
+
+fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    match tokens.last() {
+        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        None => return NotComplete,
+        _ => error("unknow token when expecting an expression")
+    }
+}
+
+fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut parsed_tokens = vec![If];
+    let cond_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    expect_token!(
+        [Then, Then, ()] <= tokens,
+        parsed_tokens, "expected then");
+    let then_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    expect_token!(
+        [Else, Else, ()] <= tokens,
+        parsed_tokens, "expected else");
+    let else_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(ConditionalExpr{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
+}
+```
+
+First we extend our AST. Then we extend primary expression parsing
+with the call to conditional expression
+parsing if we see the `If` token. In this newly added function
+we parse the condition, look for `Then` token, parse 'then' branch, look for
+`Else` token and parse 'else' branch.
+
+That's all, we have AST for if/then/else generated.
 
 ## Extending Kaleidoscope: user-defined operators
 

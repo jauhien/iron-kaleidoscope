@@ -34,7 +34,9 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [LLVM Optimization passes](#llvm-optimization-passes)
   * [MCJIT based JIT-compiler](#mcjit-based-jit-compiler)
   * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
-* [Extending Kaleidoscope: control flow](#extending-kaleidoscope-control-flow)
+* [Chapter 4. Extending Kaleidoscope: control flow](#chapter-4-extending-kaleidoscope-control-flow)
+  * [If/Then/Else](#ifthenelse)
+    * [Lexer and parser changes for /if/then/else](#lexer-and-parser-changes-for-ifthenelse)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -1364,7 +1366,58 @@ attributes #0 = { "no-frame-pointer-elim"="false" }
 Full code for this chapter is available
 [here](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/3).
 
-## Extending Kaleidoscope: control flow
+## Chapter 4. Extending Kaleidoscope: control flow
+
+We have created a general framework for simple REPL based language implementation.
+It's time to add some Turing completeness to our language now.
+
+### If/Then/Else
+
+Let's see how easy it is to extend our implementation. The first thing that
+we'll add is conditional branching. If/then/else construct will be
+an expression (like everything in the Kaleidoscope language) with value
+corresponding to the taken branch. We will consider `0.0` as `false` and
+any other value as `true`.
+
+What we finally want to have is something like
+
+```
+def fib(x)
+  if x < 3 then
+    1
+  else
+    fib(x-1)+fib(x-2);
+```
+
+We will evaluate only one branch (this is important, as we can have side effects in our code).
+
+#### Lexer and parser changes for /if/then/else
+
+Let's start from formal grammar definition (only the relevant part of the grammar is shown):
+
+```{.ebnf .notation}
+<<<grammar.ebnf:if-grammar>>>
+```
+
+where `If`, `Then`, `Else` are new tokens that we're going to add to the lexer:
+
+```rust
+<<<src/lexer.rs:if-lexer>>>
+```
+
+Lexer extension is completely staightforward, parser is not much more complicated:
+
+```rust
+<<<src/parser.rs:if-parser>>>
+```
+
+First we extend our AST. Then we extend primary expression parsing
+with the call to conditional expression
+parsing if we see the `If` token. In this newly added function
+we parse the condition, look for `Then` token, parse 'then' branch, look for
+`Else` token and parse 'else' branch.
+
+That's all, we have AST for if/then/else generated.
 
 ## Extending Kaleidoscope: user-defined operators
 
