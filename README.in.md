@@ -37,6 +37,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
 * [Chapter 4. Extending Kaleidoscope: control flow](#chapter-4-extending-kaleidoscope-control-flow)
   * [If/Then/Else](#ifthenelse)
     * [Lexer and parser changes for /if/then/else](#lexer-and-parser-changes-for-ifthenelse)
+    * [IR generation for if/then/else](#ir-generation-for-ifthenelse)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -1418,6 +1419,176 @@ we parse the condition, look for `Then` token, parse 'then' branch, look for
 `Else` token and parse 'else' branch.
 
 That's all, we have AST for if/then/else generated.
+
+#### IR generation for if/then/else
+
+Parser changes introduced no new concepts. Now the interesting part of implementation starts.
+Control flow for our if/then/else construct will look something like this:
+
+```
+        A
+        ^
+       / \
+      /   \
+     B     C
+     \     /
+      \   /
+       \ /
+        V
+        D
+```
+
+Execution goes in the top-down direction. Depending on the value calculated in the
+basic block `A` we execute either basic block `B` or `C`. In the basic block `D` we assign
+value to the result of the if/then/else expression. This value is one of values calculated in
+`B` or `C`.
+
+We have code in [SSA](https://en.wikipedia.org/wiki/Static_single_assignment_form) form.
+To construct a single variable that can be assigned one or other value we need to use the
+phi-operation (read the wikipedia article if you do not know what is it). Our case is really
+simple as we know exactly how the control flows and what value corresponds to which incoming branch.
+Because of this we're going to build the phi-operation by hand here. In the future when we'll define
+mutable variables, we will use some kind of available LLVM magic to generate SSA automatically
+as the case of mutable variables is more complicated.
+
+So far as the result of IR code generation for if/then/else we want to have something that looks like this:
+
+```
+<=== Kaleidoscope input ===>
+
+extern foo();
+extern bar();
+def baz(x) if x then foo() else bar();
+
+
+<=========== IR ===========>
+
+declare double @foo()
+
+declare double @bar()
+
+define double @baz(double %x) {
+entry:
+  %ifcond = fcmp one double %x, 0.000000e+00
+  br i1 %ifcond, label %then, label %else
+
+then:       ; preds = %entry
+  %calltmp = call double @foo()
+  br label %ifcont
+
+else:       ; preds = %entry
+  %calltmp1 = call double @bar()
+  br label %ifcont
+
+ifcont:     ; preds = %else, %then
+  %iftmp = phi double [ %calltmp, %then ], [ %calltmp1, %else ]
+  ret double %iftmp
+}
+
+```
+
+The IR does this:
+
+* **entry**: evaluate the condition and compare it with zero. Branch to
+             appropriate basic block depending on the evaluated value.
+* **then**: evaluate `then` branch and branch to `ifcont`.
+* **else**: evaluate `else` branch and branch to `ifcont`.
+* **ifcont**: build the phi operation that assigns resulting value depending
+              on the branch from which it received control. Return the result.
+
+You see what do we want, let's add the necessary part to our IR builder:
+
+```rust
+<<<src/builder.rs:if-builder>>>
+```
+
+Quite straightforward implementation of the described algorithm. Let's look at it line by line.
+
+```rust
+<<<src/builder.rs:if-builder-cond>>>
+```
+
+Here we evaluate condition and compare it with zero.
+
+```rust
+<<<src/builder.rs:if-builder-br>>>
+```
+
+Generate a bunch of basic blocks and conditionally branch to `then` or `else` one.
+
+```rust
+<<<src/builder.rs:if-builder-then-else>>>
+```
+
+Position at the branch block, evaluate its value and branch to the `merge` basic block.
+Note, that we remember the end block of `then` and `else` branches as it can be different
+from their starting blocks.
+
+```rust
+<<<src/builder.rs:if-builder-merge>>>
+```
+
+Build phi operation and add incoming values to it. Return its value as the result.
+Unsafe block is here due to slight inconsistency of my bindings (they are going to be fixed).
+
+That's all. Let's try if our Fibonacci function works:
+
+```
+> def fib(x)
+.   if x < 3 then
+.     1
+.   else
+.     fib(x-1)+fib(x-2);
+
+define double @fib(double %x) {
+entry:
+  %cmptmp = fcmp olt double %x, 3.000000e+00
+  br i1 %cmptmp, label %ifcont, label %else
+
+else:                                             ; preds = %entry
+  %subtmp = fadd double %x, -1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp5 = fadd double %x, -2.000000e+00
+  %calltmp6 = call double @fib(double %subtmp5)
+  %addtmp = fadd double %calltmp, %calltmp6
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+  ret double %ifphi
+}
+
+> fib(15)
+=> 610
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+
+define double @fib(double %x) {
+entry:
+  %cmptmp = fcmp olt double %x, 3.000000e+00
+  br i1 %cmptmp, label %ifcont, label %else
+
+else:                                             ; preds = %entry
+  %subtmp = fadd double %x, -1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp5 = fadd double %x, -2.000000e+00
+  %calltmp6 = call double @fib(double %subtmp5)
+  %addtmp = fadd double %calltmp, %calltmp6
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+  ret double %ifphi
+}
+
+define double @0() {
+entry:
+  %calltmp = call double @fib(double 1.500000e+01)
+  ret double %calltmp
+}
+; ModuleID = 'main'
+```
 
 ## Extending Kaleidoscope: user-defined operators
 

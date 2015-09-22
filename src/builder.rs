@@ -444,21 +444,27 @@ impl IRBuilder for parser::Expression {
                     false))
             }
 //> ch-2 ch-3 ir-expression ir-call
-            ,
+/*j*/       ,
 
 
+//< if-builder
             &parser::ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
+//< if-builder-cond
                 let (cond_value, _) = try!(cond_expr.codegen(context, module_provider));
                 let zero = RealConstRef::get(&context.ty, 0.0);
                 let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
+//> if-builder-cond
 
+//< if-builder-br
                 let block = context.builder.get_insert_block();
                 let mut function = block.get_parent();
                 let mut then_block = function.append_basic_block_in_context(&mut context.context, "then");
                 let mut else_block = function.append_basic_block_in_context(&mut context.context, "else");
                 let mut merge_block = function.append_basic_block_in_context(&mut context.context, "ifcont");
                 context.builder.build_cond_br(ifcond, &then_block, &else_block);
+//> if-builder-br
 
+//< if-builder-then-else
                 context.builder.position_at_end(&mut then_block);
                 let (then_value, _) = try!(then_expr.codegen(context, module_provider));
                 context.builder.build_br(&merge_block);
@@ -468,8 +474,12 @@ impl IRBuilder for parser::Expression {
                 let (else_value, _) = try!(else_expr.codegen(context, module_provider));
                 context.builder.build_br(&merge_block);
                 let else_end_block = context.builder.get_insert_block();
+//> if-builder-then-else
 
+//< if-builder-merge
                 context.builder.position_at_end(&mut merge_block);
+                // TODO: fix builder methods, so they generate the
+                // right instruction
                 let mut phi = unsafe {
                     PHINodeRef::from_ref(context.builder.build_phi(context.ty.to_ref(), "ifphi"))
                 };
@@ -477,7 +487,9 @@ impl IRBuilder for parser::Expression {
                 phi.add_incoming(vec![else_value].as_mut_slice(), vec![else_end_block].as_mut_slice());
 
                 Ok((phi.to_ref(), false))
+//> if-builder-merge
             },
+//> if-builder
 
 
             &parser::LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
