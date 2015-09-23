@@ -36,8 +36,10 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
 * [Chapter 4. Extending Kaleidoscope: control flow](#chapter-4-extending-kaleidoscope-control-flow)
   * [If/Then/Else](#ifthenelse)
-    * [Lexer and parser changes for /if/then/else](#lexer-and-parser-changes-for-ifthenelse)
+    * [Lexer and parser changes for if/then/else](#lexer-and-parser-changes-for-ifthenelse)
     * [IR generation for if/then/else](#ir-generation-for-ifthenelse)
+  * ['For' loop](#for-loop)
+    * [Lexer and parser changes for the 'for' loop](#lexer-and-parser-changes-for-the-for-loop)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -2871,6 +2873,184 @@ entry:
 }
 ; ModuleID = 'main'
 ```
+
+### 'For' loop
+
+Let's add a loop construct to our language. This will allow us to e.g
+output a line from stars (it was possible already with recursion,
+but some people think loops are easier):
+
+```
+extern putchard(char)
+def printstar(n)
+  for i = 1, i < n, 1.0 in
+    putchard(42);  # ascii 42 = '*'
+
+# print 100 '*' characters
+printstar(100);
+```
+
+Our loop defines new variable (`i` in this case) that iterates
+from starting value (1) while condition (`i < n`) is true. The variable
+is incremented by an optional step (`1.0`). If it is not supplied, it defaults to 1.
+We return zero as the result of the whole loop. When we'll add mutable variables there
+will be a possibility to write code that computes some values using loops.
+
+#### Lexer and parser changes for the 'for' loop
+
+Let's start from the grammar again:
+
+```{.ebnf .notation}
+primary_expr     : [Ident | Literal | call_expr | parenthesis_expr | conditional_expr | loop_expr];
+loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression
+```
+
+We are going to add `For` and `In` tokens to our parser. `Op=` means operator token
+with value `=`.
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Token {
+    Def,
+    Extern,
+    If,
+    Then,
+    Else,
+    For,
+    In,
+    Delimiter, //';' character
+    OpeningParenthesis,
+    ClosingParenthesis,
+    Comma,
+    Ident(String),
+    Number(f64),
+    Operator(String)
+}
+
+pub fn tokenize(input: &str) -> Vec<Token> {
+    // regex for commentaries (start with #, end with the line end)
+    let comment_re = regex!(r"(?m)#.*\n");
+    // remove commentaries from the input stream
+    let preprocessed = comment_re.replace_all(input, "\n");
+
+    let mut result = Vec::new();
+
+    // regex for token, just union of straightforward regexes for different token types
+    // operators are parsed the same way as identifier and separated later
+    let token_re = regex!(concat!(
+        r"(?P<ident>\p{Alphabetic}\w*)|",
+        r"(?P<number>\d+\.?\d*)|",
+        r"(?P<delimiter>;)|",
+        r"(?P<oppar>\()|",
+        r"(?P<clpar>\))|",
+        r"(?P<comma>,)|",
+        r"(?P<operator>\S)"));
+
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
+        let token = if cap.name("ident").is_some() {
+            match cap.name("ident").unwrap() {
+                "def" => Def,
+                "extern" => Extern,
+                "if" => If,
+                "then" => Then,
+                "else" => Else,
+                "for" => For,
+                "in" => In,
+                ident => Ident(ident.to_string())
+            }
+        } else if cap.name("number").is_some() {
+            match cap.name("number").unwrap().parse() {
+                Ok(number) => Number(number),
+                Err(_) => panic!("Lexer failed trying to parse number")
+            }
+        } else if cap.name("delimiter").is_some() {
+            Delimiter
+        } else if cap.name("oppar").is_some() {
+            OpeningParenthesis
+        } else if cap.name("clpar").is_some() {
+            ClosingParenthesis
+        } else if cap.name("comma").is_some() {
+            Comma
+        } else {
+            Operator(cap.name("operator").unwrap().to_string())
+        };
+
+        result.push(token)
+    }
+
+    result
+}
+```
+
+Parser is also quite simple with one thing to note about handling of the optional
+part of the grammar:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Expression {
+    LiteralExpr(f64),
+    VariableExpr(String),
+    BinaryExpr(String, Box<Expression>, Box<Expression>),
+    ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
+    LoopExpr{var_name: String, start_expr: Box<Expression>, end_expr: Box<Expression>, step_expr: Box<Expression>, body_expr: Box<Expression>},
+    CallExpr(String, Vec<Expression>)
+}
+
+fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    match tokens.last() {
+        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&For) => parse_loop_expr(tokens, settings),
+        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        None => return NotComplete,
+        _ => error("unknow token when expecting an expression")
+    }
+}
+
+fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut parsed_tokens = vec![For];
+    let var_name = expect_token!(
+        [Ident(name), Ident(name.clone()), name] <= tokens,
+        parsed_tokens, "expected identifier after for");
+
+    expect_token!(
+        [Operator(op), Operator(op.clone()), {
+            if op.as_str() != "=" {
+                return error("expected '=' after for")
+            }
+        }] <= tokens,
+        parsed_tokens, "expected '=' after for");
+
+    let start_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    expect_token!(
+        [Comma, Comma, ()] <= tokens,
+        parsed_tokens, "expected ',' after for start value");
+
+    let end_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    let step_expr = expect_token!(
+        [Comma, Comma, parse_try!(parse_expr, tokens, settings, parsed_tokens)]
+        else {LiteralExpr(1.0)}
+        <= tokens, parsed_tokens);
+
+    expect_token!(
+        [In, In, ()] <= tokens,
+        parsed_tokens, "expected 'in' after for");
+
+    let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(LoopExpr{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
+}
+```
+
+If we do not encounter `Comma` that should go before the optional step value,
+we return its default value (`1.0`) and continue parsing of the `for` loop expression.
+Other parsing code is completely straightforward and well-known from the previous
+chapters. Due to already implemented macros it corresponds to our grammar closely and
+contains nearly no boilerplate.
 
 ## Extending Kaleidoscope: user-defined operators
 

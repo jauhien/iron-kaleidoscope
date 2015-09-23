@@ -22,7 +22,7 @@ pub use self::Token::{
 };
 //> lexer-tokens-use
 
-//< lexer-tokens if-lexer
+//< lexer-tokens if-lexer for-lexer
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
@@ -34,10 +34,11 @@ pub enum Token {
 //> if-lexer
     For,
     In,
+//> for-lexer
     Binary,
     Unary,
     Var,
-//< ch-0 lexer-tokens if-lexer
+//< ch-0 lexer-tokens if-lexer for-lexer
     Delimiter, //';' character
     OpeningParenthesis,
     ClosingParenthesis,
@@ -80,10 +81,11 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 //> if-lexer
                 "for" => For,
                 "in" => In,
+//> for-lexer
                 "binary" => Binary,
                 "unary" => Unary,
                 "var" => Var,
-//< ch-0 lexer-tokenize if-lexer
+//< ch-0 lexer-tokenize if-lexer for-lexer
                 ident => Ident(ident.to_string())
             }
         } else if cap.name("number").is_some() {
@@ -108,4 +110,4 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     result
 }
-//> ch-0 lexer-tokenize if-lexer
+//> ch-0 lexer-tokenize if-lexer for-lexer

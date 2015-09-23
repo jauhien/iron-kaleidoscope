@@ -36,8 +36,10 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Changes in the driver and 'built-in' functions](#changes-in-the-driver-and-built-in-functions)
 * [Chapter 4. Extending Kaleidoscope: control flow](#chapter-4-extending-kaleidoscope-control-flow)
   * [If/Then/Else](#ifthenelse)
-    * [Lexer and parser changes for /if/then/else](#lexer-and-parser-changes-for-ifthenelse)
+    * [Lexer and parser changes for if/then/else](#lexer-and-parser-changes-for-ifthenelse)
     * [IR generation for if/then/else](#ir-generation-for-ifthenelse)
+  * ['For' loop](#for-loop)
+    * [Lexer and parser changes for the 'for' loop](#lexer-and-parser-changes-for-the-for-loop)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -1589,6 +1591,56 @@ entry:
 }
 ; ModuleID = 'main'
 ```
+
+### 'For' loop
+
+Let's add a loop construct to our language. This will allow us to e.g
+output a line from stars (it was possible already with recursion,
+but some people think loops are easier):
+
+```
+extern putchard(char)
+def printstar(n)
+  for i = 1, i < n, 1.0 in
+    putchard(42);  # ascii 42 = '*'
+
+# print 100 '*' characters
+printstar(100);
+```
+
+Our loop defines new variable (`i` in this case) that iterates
+from starting value (1) while condition (`i < n`) is true. The variable
+is incremented by an optional step (`1.0`). If it is not supplied, it defaults to 1.
+We return zero as the result of the whole loop. When we'll add mutable variables there
+will be a possibility to write code that computes some values using loops.
+
+#### Lexer and parser changes for the 'for' loop
+
+Let's start from the grammar again:
+
+```{.ebnf .notation}
+<<<grammar.ebnf:for-grammar>>>
+```
+
+We are going to add `For` and `In` tokens to our parser. `Op=` means operator token
+with value `=`.
+
+```rust
+<<<src/lexer.rs:for-lexer>>>
+```
+
+Parser is also quite simple with one thing to note about handling of the optional
+part of the grammar:
+
+```rust
+<<<src/parser.rs:for-parser>>>
+```
+
+If we do not encounter `Comma` that should go before the optional step value,
+we return its default value (`1.0`) and continue parsing of the `for` loop expression.
+Other parsing code is completely straightforward and well-known from the previous
+chapters. Due to already implemented macros it corresponds to our grammar closely and
+contains nearly no boilerplate.
 
 ## Extending Kaleidoscope: user-defined operators
 

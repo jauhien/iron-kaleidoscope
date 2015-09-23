@@ -13,16 +13,22 @@ prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 //< parser-grammar-expr parser-grammar-binary
 expression       : [primary_expr (Op primary_expr)*];
 //> parser-grammar-binary
-//< parser-grammar-primary if-grammar
+//< parser-grammar-primary if-grammar for-grammar
 primary_expr     : [Ident | Literal | call_expr | parenthesis_expr
 //> parser-grammar parser-grammar-expr parser-grammar-primary
 /*jw*/ | conditional_expr
-//< parser-grammar parser-grammar-expr parser-grammar-primary
-/*j*/ ];
 //> if-grammar
+//< for-grammar
+/*jw*/ | loop_expr
+//< parser-grammar parser-grammar-expr parser-grammar-primary if-grammar
+/*j*/ ];
+//> if-grammar for-grammar
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 //> parser-grammar parser-grammar-expr parser-grammar-primary
 //< if-grammar
 conditional_expr : If expression Then expression Else expression;
 //> if-grammar
+//< for-grammar
+loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression
+//> for-grammar
