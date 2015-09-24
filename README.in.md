@@ -40,6 +40,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
     * [IR generation for if/then/else](#ir-generation-for-ifthenelse)
   * ['For' loop](#for-loop)
     * [Lexer and parser changes for the 'for' loop](#lexer-and-parser-changes-for-the-for-loop)
+    * [IR generation for the 'for' loop](#ir-generation-for-the-for-loop)
 * [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
@@ -1545,18 +1546,23 @@ That's all. Let's try if our Fibonacci function works:
 define double @fib(double %x) {
 entry:
   %cmptmp = fcmp olt double %x, 3.000000e+00
-  br i1 %cmptmp, label %ifcont, label %else
+  %booltmp = uitofp i1 %cmptmp to double
+  %ifcond = fcmp one double %booltmp, 0.000000e+00
+  br i1 %ifcond, label %then, label %else
 
-else:                                             ; preds = %entry
-  %subtmp = fadd double %x, -1.000000e+00
-  %calltmp = call double @fib(double %subtmp)
-  %subtmp5 = fadd double %x, -2.000000e+00
-  %calltmp6 = call double @fib(double %subtmp5)
-  %addtmp = fadd double %calltmp, %calltmp6
+then:                                             ; preds = %entry
   br label %ifcont
 
-ifcont:                                           ; preds = %entry, %else
-  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+else:                                             ; preds = %entry
+  %subtmp = fsub double %x, 1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp1 = fsub double %x, 2.000000e+00
+  %calltmp2 = call double @fib(double %subtmp1)
+  %addtmp = fadd double %calltmp, %calltmp2
+  br label %ifcont
+
+ifcont:                                           ; preds = %else, %then
+  %ifphi = phi double [ 1.000000e+00, %then ], [ %addtmp, %else ]
   ret double %ifphi
 }
 
@@ -1564,31 +1570,38 @@ ifcont:                                           ; preds = %entry, %else
 => 610
 > .quit
 ; ModuleID = 'main'
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
 
-define double @fib(double %x) {
+define double @fib(double %x) #0 {
 entry:
   %cmptmp = fcmp olt double %x, 3.000000e+00
-  br i1 %cmptmp, label %ifcont, label %else
+  %booltmp = uitofp i1 %cmptmp to double
+  %ifcond = fcmp one double %booltmp, 0.000000e+00
+  br i1 %ifcond, label %then, label %else
 
-else:                                             ; preds = %entry
-  %subtmp = fadd double %x, -1.000000e+00
-  %calltmp = call double @fib(double %subtmp)
-  %subtmp5 = fadd double %x, -2.000000e+00
-  %calltmp6 = call double @fib(double %subtmp5)
-  %addtmp = fadd double %calltmp, %calltmp6
+then:                                             ; preds = %entry
   br label %ifcont
 
-ifcont:                                           ; preds = %entry, %else
-  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+else:                                             ; preds = %entry
+  %subtmp = fsub double %x, 1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp1 = fsub double %x, 2.000000e+00
+  %calltmp2 = call double @fib(double %subtmp1)
+  %addtmp = fadd double %calltmp, %calltmp2
+  br label %ifcont
+
+ifcont:                                           ; preds = %else, %then
+  %ifphi = phi double [ 1.000000e+00, %then ], [ %addtmp, %else ]
   ret double %ifphi
 }
 
-define double @0() {
+define double @0() #0 {
 entry:
   %calltmp = call double @fib(double 1.500000e+01)
   ret double %calltmp
 }
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
 ; ModuleID = 'main'
 ```
 
@@ -1641,6 +1654,123 @@ we return its default value (`1.0`) and continue parsing of the `for` loop expre
 Other parsing code is completely straightforward and well-known from the previous
 chapters. Due to already implemented macros it corresponds to our grammar closely and
 contains nearly no boilerplate.
+
+#### IR generation for the 'for' loop
+
+IR generated for our short loop example without optimizations should look like
+
+```
+declare double @putchard(double)
+
+define double @printstar(double %n) {
+entry:
+  ; initial value = 1.0 (inlined into phi)
+  br label %loop
+
+loop:       ; preds = %loop, %entry
+  %i = phi double [ 1.000000e+00, %entry ], [ %nextvar, %loop ]
+  ; body
+  %calltmp = call double @putchard(double 4.200000e+01)
+  ; increment
+  %nextvar = fadd double %i, 1.000000e+00
+
+  ; termination test
+  %cmptmp = fcmp ult double %i, %n
+  %booltmp = uitofp i1 %cmptmp to double
+  %loopcond = fcmp one double %booltmp, 0.000000e+00
+  br i1 %loopcond, label %loop, label %afterloop
+
+afterloop:      ; preds = %loop
+  ; loop always returns 0.0
+  ret double 0.000000e+00
+}
+```
+
+All the concepts that we see here are familiar (phi expression, branches, basic blocks etc).
+
+We will generate similar code.
+
+```rust
+<<<src/builder.rs:for-builder>>>
+```
+
+This code should contain nothing new (familiar phi, branches and other machinery) apart
+from manipulations with `named_values` table. We create local loop variable and add it to
+the table. If there existed any variable with the same name, we hide it and remember the old value.
+On exit from loop we restore this all value back. From other interesting things, note, that we
+are adding incoming values to our phi node as soon as we have them.
+
+Let's see how do our loops work:
+
+```
+> extern putchard(char)
+
+declare double @putchard(double)
+
+> def printstar(n)
+.   for i = 1, i < n, 1.0 in
+.     putchard(42);
+
+define double @printstar(double %n) {
+entry:
+  br label %preloop
+
+preloop:                                          ; preds = %loop, %entry
+  %i = phi double [ 1.000000e+00, %entry ], [ %nextvar, %loop ]
+  %cmptmp = fcmp olt double %i, %n
+  %booltmp = uitofp i1 %cmptmp to double
+  %loopcond = fcmp one double %booltmp, 0.000000e+00
+  br i1 %loopcond, label %loop, label %afterloop
+
+afterloop:                                        ; preds = %preloop
+  ret double 0.000000e+00
+
+loop:                                             ; preds = %preloop
+  %calltmp = call double @putchard(double 4.200000e+01)
+  %nextvar = fadd double %i, 1.000000e+00
+  br label %preloop
+}
+
+> printstar(100);
+***************************************************************************************************=> 0
+> .quit
+; ModuleID = 'main'
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+
+declare double @putchard(double) #0
+
+define double @printstar(double %n) #0 {
+entry:
+  br label %preloop
+
+preloop:                                          ; preds = %loop, %entry
+  %i = phi double [ 1.000000e+00, %entry ], [ %nextvar, %loop ]
+  %cmptmp = fcmp olt double %i, %n
+  %booltmp = uitofp i1 %cmptmp to double
+  %loopcond = fcmp one double %booltmp, 0.000000e+00
+  br i1 %loopcond, label %loop, label %afterloop
+
+afterloop:                                        ; preds = %preloop
+  ret double 0.000000e+00
+
+loop:                                             ; preds = %preloop
+  %calltmp = call double @putchard(double 4.200000e+01)
+  %nextvar = fadd double %i, 1.000000e+00
+  br label %preloop
+}
+
+define double @0() #0 {
+entry:
+  %calltmp = call double @printstar(double 1.000000e+02)
+  ret double %calltmp
+}
+
+attributes #0 = { "no-frame-pointer-elim"="false" }
+; ModuleID = 'main'
+```
+
+Full code for this chapter is as always
+[available](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/4).
 
 ## Extending Kaleidoscope: user-defined operators
 
