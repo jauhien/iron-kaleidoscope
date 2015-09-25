@@ -43,6 +43,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
     * [IR generation for the 'for' loop](#ir-generation-for-the-for-loop)
 * [Chapter 5. Extending Kaleidoscope: user-defined operators](#chapter-5-extending-kaleidoscope-user-defined-operators)
   * [User-defined binary operators](#user-defined-binary-operators)
+  * [User-defined unary operators](#user-defined-unary-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
 
@@ -1901,5 +1902,53 @@ declaration. If it finds one, it generates call, otherwise it returns error.
 
 That's all with binary operators. We can define our own items
 that play with other parts of expression just like language native ones.
+
+### User-defined unary operators
+
+We had a framework necessary for user-defined binary operators already implemented
+in previous chapters. For unary operators we need to add some more pieces. But let's start
+from the grammar:
+
+```{.ebnf .notation}
+<<<grammar.ebnf:unary-grammar>>>
+```
+
+We add new type of prototype and new primary expression.
+
+Implementing starts from the lexer where we add `Unary` token.
+
+Then we add new AST node to the parser:
+
+```rust
+<<<src/parser.rs:unary-ast>>>
+```
+
+and new function type:
+
+```rust
+<<<src/parser.rs:unary-ftype>>>
+```
+
+Function parsing stays the same. Prototype parsing changes according to the grammar:
+
+```rust
+<<<src/parser.rs:unary-parse-proto>>>
+```
+
+We name functions for unary operators `unary@` similar to the binary case
+and ensure that they accept exactly one argument.
+
+Then we add parsing of unary expressions:
+
+```rust
+<<<src/parser.rs:unary-parse-expr>>>
+```
+
+IR building for unary expressions is also simple (just a call
+to appropriate function):
+
+```rust
+<<<src/builder.rs:unary-builder>>>
+```
 
 ## Extending Kaleidoscope: mutable variables

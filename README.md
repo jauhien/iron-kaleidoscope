@@ -43,6 +43,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
     * [IR generation for the 'for' loop](#ir-generation-for-the-for-loop)
 * [Chapter 5. Extending Kaleidoscope: user-defined operators](#chapter-5-extending-kaleidoscope-user-defined-operators)
   * [User-defined binary operators](#user-defined-binary-operators)
+  * [User-defined unary operators](#user-defined-unary-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
 
@@ -2917,7 +2918,7 @@ Let's start from the grammar again:
 
 ```{.ebnf .notation}
 primary_expr     : [Ident | Number | call_expr | parenthesis_expr | conditional_expr | loop_expr];
-loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression
+loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression;
 ```
 
 We are going to add `For` and `In` tokens to our parser. `Op=` means operator token
@@ -3283,7 +3284,7 @@ We need to change our grammar for prototypes to reflect the possibility to
 have binary operators definitions:
 
 ```{.ebnf .notation}
-prototype        : [Ident, Binary Op Number ?] OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+prototype        : [Ident | Binary Op Number ?] OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 ```
 
 Note that we do not change grammar for expressions.
@@ -3472,5 +3473,151 @@ declaration. If it finds one, it generates call, otherwise it returns error.
 
 That's all with binary operators. We can define our own items
 that play with other parts of expression just like language native ones.
+
+### User-defined unary operators
+
+We had a framework necessary for user-defined binary operators already implemented
+in previous chapters. For unary operators we need to add some more pieces. But let's start
+from the grammar:
+
+```{.ebnf .notation}
+prototype        : [Ident | Binary Op Number ? | Unary Op] OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr | conditional_expr | loop_expr | unary_expr];
+unary_expr:      : Op primary_expr;
+```
+
+We add new type of prototype and new primary expression.
+
+Implementing starts from the lexer where we add `Unary` token.
+
+Then we add new AST node to the parser:
+
+```rust
+    UnaryExpr(String, Box<Expression>),
+```
+
+and new function type:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum FunctionType {
+    Normal,
+    UnaryOp(String),
+    BinaryOp(String, i32)
+}
+```
+
+Function parsing stays the same. Prototype parsing changes according to the grammar:
+
+```rust
+fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
+    let mut parsed_tokens = Vec::new();
+
+    let (name, ftype) = expect_token!([
+            Ident(name), Ident(name.clone()), (name, Normal);
+            Unary, Unary, {
+                let op = expect_token!([
+                        Operator(op), Operator(op.clone()), op
+                    ] <= tokens, parsed_tokens, "expected unary operator");
+                ("unary".to_string() + &op, UnaryOp(op))
+            };
+            Binary, Binary, {
+                let op = expect_token!([
+                        Operator(op), Operator(op.clone()), op
+                    ] <= tokens, parsed_tokens, "expected binary operator");
+                let precedence = expect_token!(
+                    [Number(value), Number(value), value as i32]
+                    else {30}
+                    <= tokens, parsed_tokens);
+
+                if precedence < 1 || precedence > 100 {
+                    return error("invalid precedecnce: must be 1..100");
+                }
+
+                ("binary".to_string() + &op, BinaryOp(op, precedence))
+            }
+        ] <= tokens, parsed_tokens, "expected function name in prototype");
+
+    expect_token!(
+        [OpeningParenthesis, OpeningParenthesis, ()] <= tokens,
+        parsed_tokens, "expected '(' in prototype");
+
+    let mut args = Vec::new();
+    loop {
+        expect_token!([
+            Ident(arg), Ident(arg.clone()), args.push(arg.clone());
+            Comma, Comma, continue;
+            ClosingParenthesis, ClosingParenthesis, break
+        ] <= tokens, parsed_tokens, "expected ')' in prototype");
+    }
+
+    match ftype {
+        UnaryOp(_) => if args.len() != 1 {
+            return error("invalid number of operands for unary operator")
+        },
+        BinaryOp(_, _) => if args.len() != 2 {
+            return error("invalid number of operands for binary operator")
+        },
+        _ => ()
+    };
+
+
+    Good(Prototype{name: name, args: args, ftype: ftype}, parsed_tokens)
+}
+```
+
+We name functions for unary operators `unary@` similar to the binary case
+and ensure that they accept exactly one argument.
+
+Then we add parsing of unary expressions:
+
+```rust
+fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    match tokens.last() {
+        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&For) => parse_loop_expr(tokens, settings),
+        Some(&Operator(_)) => parse_unary_expr(tokens, settings),
+        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        None => return NotComplete,
+        _ => error("unknow token when expecting an expression")
+    }
+}
+
+fn parse_unary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    let mut parsed_tokens = Vec::new();
+
+    let name = expect_token!(
+        [Operator(name), Operator(name.clone()), name] <= tokens,
+        parsed_tokens, "unary operator expected");
+
+    let operand = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
+
+    Good(UnaryExpr(name, box operand), parsed_tokens)
+}
+```
+
+IR building for unary expressions is also simple (just a call
+to appropriate function):
+
+```rust
+            &parser::UnaryExpr(ref operator, ref operand) => {
+                let (operand, _) = try!(operand.codegen(context, module_provider));
+
+                let name = "unary".to_string() + operator;
+                let (function, _) = match module_provider.get_function(name.as_str()) {
+                    Some(function) => function,
+                    None => return error("unary operator not found")
+                };
+
+                let mut args_value = vec![operand];
+
+                Ok((context.builder.build_call(function.to_ref(),
+                                                args_value.as_mut_slice(),
+                                                "unop"),
+                    false))
+            },
+```
 
 ## Extending Kaleidoscope: mutable variables

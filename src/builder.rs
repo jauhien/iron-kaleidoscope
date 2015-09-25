@@ -324,6 +324,7 @@ impl IRBuilder for parser::Expression {
 //> ch-2 ch-3 ch-4 ir-expression ir-variable
 
 
+//< unary-builder
             &parser::UnaryExpr(ref operator, ref operand) => {
                 let (operand, _) = try!(operand.codegen(context, module_provider));
 
@@ -340,6 +341,7 @@ impl IRBuilder for parser::Expression {
                                                 "unop"),
                     false))
             },
+//> unary-builder
 //< ch-2 ch-3 ch-4 ir-expression
 
 
