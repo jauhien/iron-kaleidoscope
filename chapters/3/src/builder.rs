@@ -202,6 +202,7 @@ impl IRBuilder for parser::Function {
         context.builder.build_ret(&body);
 
         function.verify(LLVMAbortProcessAction);
+        module_provider.get_pass_manager().run(&mut function);
 
         // clear local variables
         context.named_values.clear();

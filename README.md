@@ -44,6 +44,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
 * [Chapter 5. Extending Kaleidoscope: user-defined operators](#chapter-5-extending-kaleidoscope-user-defined-operators)
   * [User-defined binary operators](#user-defined-binary-operators)
   * [User-defined unary operators](#user-defined-unary-operators)
+  * [Painting the Mandelbrot set](#painting-the-mandelbrot-set)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
 
@@ -3135,7 +3136,8 @@ We will generate similar code.
 
                 let (step_value, _) = try!(step_expr.codegen(context, module_provider));
                 let next_value = context.builder.build_fadd(variable.to_ref(), step_value, "nextvar");
-                variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_block].as_mut_slice());
+                let loop_end_block = context.builder.get_insert_block();
+                variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_end_block].as_mut_slice());
 
                 context.builder.build_br(&preloop_block);
 
@@ -3155,7 +3157,9 @@ This code should contain nothing new (familiar phi, branches and other machinery
 from manipulations with `named_values` table. We create local loop variable and add it to
 the table. If there existed any variable with the same name, we hide it and remember the old value.
 On exit from loop we restore this all value back. From other interesting things, note, that we
-are adding incoming values to our phi node as soon as we have them.
+are adding incoming values to our phi node as soon as we have them. Also note, that we
+add the value for branch incoming from the end block of the loop body (similar as for
+conditional expression loop body can have a number of basic blocks).
 
 Let's see how do our loops work:
 
@@ -3619,5 +3623,417 @@ to appropriate function):
                     false))
             },
 ```
+
+### Painting the Mandelbrot set
+
+So we have a really powerful language now. Let's start to program great things with it.
+
+First a bunch of primitive operations:
+
+```
+> def unary!(v)
+.   if v then
+.     0
+.   else
+.     1;
+
+define double @"unary!"(double %v) {
+entry:
+  %ifcond = fcmp ueq double %v, 0.000000e+00
+  %. = select i1 %ifcond, double 1.000000e+00, double 0.000000e+00
+  ret double %.
+}
+
+> def unary-(v)
+.   0-v;
+
+define double @unary-(double %v) {
+entry:
+  %subtmp = fsub double 0.000000e+00, %v
+  ret double %subtmp
+}
+
+> def binary> 10 (LHS RHS)
+.   RHS < LHS;
+
+define double @"binary>"(double %LHS, double %RHS) {
+entry:
+  %cmptmp = fcmp olt double %RHS, %LHS
+  %booltmp = uitofp i1 %cmptmp to double
+  ret double %booltmp
+}
+
+> def binary| 5 (LHS RHS)
+.   if LHS then
+.     1
+.   else if RHS then
+.     1
+.   else
+.     0;
+
+define double @"binary|"(double %LHS, double %RHS) {
+entry:
+  %ifcond = fcmp ueq double %LHS, 0.000000e+00
+  %ifcond1 = fcmp ueq double %RHS, 0.000000e+00
+  %. = select i1 %ifcond1, double 0.000000e+00, double 1.000000e+00
+  %ifphi5 = select i1 %ifcond, double %., double 1.000000e+00
+  ret double %ifphi5
+}
+
+> def binary& 6 (LHS RHS)
+.   if !LHS then
+.     0
+.   else
+.     !!RHS;
+
+define double @"binary&"(double %LHS, double %RHS) {
+entry:
+  %unop = call double @"unary!"(double %LHS)
+  %ifcond = fcmp ueq double %unop, 0.000000e+00
+  br i1 %ifcond, label %else, label %ifcont
+
+else:                                             ; preds = %entry
+  %unop1 = call double @"unary!"(double %RHS)
+  %unop2 = call double @"unary!"(double %unop1)
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %unop2, %else ], [ 0.000000e+00, %entry ]
+  ret double %ifphi
+}
+
+> def binary = 9 (LHS RHS)
+.   !(LHS < RHS | LHS > RHS);
+
+define double @"binary="(double %LHS, double %RHS) {
+entry:
+  %cmptmp = fcmp olt double %LHS, %RHS
+  %booltmp = uitofp i1 %cmptmp to double
+  %binop = call double @"binary>"(double %LHS, double %RHS)
+  %binop1 = call double @"binary|"(double %booltmp, double %binop)
+  %unop = call double @"unary!"(double %binop1)
+  ret double %unop
+}
+
+> def binary : 1 (x y) y;
+
+define double @"binary:"(double %x, double %y) {
+entry:
+  ret double %y
+}
+```
+
+The last one (`:`) is a simple precedence operator:
+
+```
+> extern printd(x);
+
+declare double @printd(double)
+
+> printd(123) : printd(456) : printd(789);
+> 123 <
+> 456 <
+> 789 <
+=> 789
+```
+
+Now we can define some funny I/O stuff. E.g. this function
+prints out a character whose “density” reflects the value passed in:
+
+```
+> extern putchard(char)
+
+declare double @putchard(double)
+
+> def printdensity(d)
+.   if d > 8 then
+.     putchard(32)  # ' '
+.   else if d > 4 then
+.     putchard(46)  # '.'
+.   else if d > 2 then
+.     putchard(43)  # '+'
+.   else
+.     putchard(42); # '*'
+
+define double @printdensity(double %d) {
+entry:
+  %binop = call double @"binary>"(double %d, double 8.000000e+00)
+  %ifcond = fcmp ueq double %binop, 0.000000e+00
+  br i1 %ifcond, label %else, label %then
+
+then:                                             ; preds = %entry
+  %calltmp = call double @putchard(double 3.200000e+01)
+  br label %ifcont
+
+else:                                             ; preds = %entry
+  %binop1 = call double @"binary>"(double %d, double 4.000000e+00)
+  %ifcond2 = fcmp ueq double %binop1, 0.000000e+00
+  br i1 %ifcond2, label %else4, label %then3
+
+ifcont:                                           ; preds = %then9, %else10, %then3, %then
+  %ifphi15 = phi double [ %calltmp, %then ], [ %calltmp6, %then3 ], [ %calltmp12, %then9 ], [ %calltmp13, %else10 ]
+  ret double %ifphi15
+
+then3:                                            ; preds = %else
+  %calltmp6 = call double @putchard(double 4.600000e+01)
+  br label %ifcont
+
+else4:                                            ; preds = %else
+  %binop7 = call double @"binary>"(double %d, double 2.000000e+00)
+  %ifcond8 = fcmp ueq double %binop7, 0.000000e+00
+  br i1 %ifcond8, label %else10, label %then9
+
+then9:                                            ; preds = %else4
+  %calltmp12 = call double @putchard(double 4.300000e+01)
+  br label %ifcont
+
+else10:                                           ; preds = %else4
+  %calltmp13 = call double @putchard(double 4.200000e+01)
+  br label %ifcont
+}
+
+> printdensity(1): printdensity(2): printdensity(3):
+. printdensity(4): printdensity(5): printdensity(9):
+. putchard(10);
+**++. 
+=> 10
+```
+
+Now we can do something more complex. Let's define a function
+that calculates the number of iterations that it takes for a complex orbit to escape,
+saturating to 255 (see [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set)).
+
+```
+> def mandleconverger(real imag iters creal cimag)
+.   if iters > 255 | (real*real + imag*imag > 4) then
+.     iters
+.   else
+.     mandleconverger(real*real - imag*imag + creal,
+.                     2*real*imag + cimag,
+.                     iters+1, creal, cimag);
+
+define double @mandleconverger(double %real, double %imag, double %iters, double %creal, double %cimag) {
+entry:
+  %binop = call double @"binary>"(double %iters, double 2.550000e+02)
+  %multmp = fmul double %real, %real
+  %multmp1 = fmul double %imag, %imag
+  %addtmp = fadd double %multmp, %multmp1
+  %binop2 = call double @"binary>"(double %addtmp, double 4.000000e+00)
+  %binop3 = call double @"binary|"(double %binop, double %binop2)
+  %ifcond = fcmp ueq double %binop3, 0.000000e+00
+  br i1 %ifcond, label %else, label %ifcont
+
+else:                                             ; preds = %entry
+  %subtmp = fsub double %multmp, %multmp1
+  %addtmp6 = fadd double %subtmp, %creal
+  %multmp7 = fmul double %real, 2.000000e+00
+  %multmp8 = fmul double %multmp7, %imag
+  %addtmp9 = fadd double %multmp8, %cimag
+  %addtmp10 = fadd double %iters, 1.000000e+00
+  %calltmp = call double @mandleconverger(double %addtmp6, double %addtmp9, double %addtmp10, double %creal, double %cimag)
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %calltmp, %else ], [ %iters, %entry ]
+  ret double %ifphi
+}
+
+> def mandleconverge(real imag)
+.   mandleconverger(real, imag, 0, real, imag);
+
+define double @mandleconverge(double %real, double %imag) {
+entry:
+  %calltmp = call double @mandleconverger(double %real, double %imag, double 0.000000e+00, double %real, double %imag)
+  ret double %calltmp
+}
+```
+
+Yes, we work with complex numbers using our simple languages. Now we are ready to paint some
+nice pictures.
+
+```
+> def mandelhelp(xmin xmax xstep   ymin ymax ystep)
+.   for y = ymin, y < ymax, ystep in (
+.     (for x = xmin, x < xmax, xstep in
+.        printdensity(mandleconverge(x,y)))
+.     : putchard(10)
+.   )
+
+define double @mandelhelp(double %xmin, double %xmax, double %xstep, double %ymin, double %ymax, double %ystep) {
+entry:
+  br label %preloop
+
+preloop:                                          ; preds = %afterloop5, %entry
+  %y = phi double [ %ymin, %entry ], [ %nextvar9, %afterloop5 ]
+  %cmptmp = fcmp olt double %y, %ymax
+  br i1 %cmptmp, label %preloop1, label %afterloop
+
+afterloop:                                        ; preds = %preloop
+  ret double 0.000000e+00
+
+preloop1:                                         ; preds = %preloop, %loop6
+  %x = phi double [ %nextvar, %loop6 ], [ %xmin, %preloop ]
+  %cmptmp2 = fcmp olt double %x, %xmax
+  br i1 %cmptmp2, label %loop6, label %afterloop5
+
+afterloop5:                                       ; preds = %preloop1
+  %calltmp8 = call double @putchard(double 1.000000e+01)
+  %binop = call double @"binary:"(double 0.000000e+00, double %calltmp8)
+  %nextvar9 = fadd double %ystep, %y
+  br label %preloop
+
+loop6:                                            ; preds = %preloop1
+  %calltmp = call double @mandleconverge(double %x, double %y)
+  %calltmp7 = call double @printdensity(double %calltmp)
+  %nextvar = fadd double %xstep, %x
+  br label %preloop1
+}
+
+> def mandel(realstart imagstart realmag imagmag)
+.   mandelhelp(realstart, realstart+realmag*78, realmag,
+.              imagstart, imagstart+imagmag*40, imagmag);
+
+define double @mandel(double %realstart, double %imagstart, double %realmag, double %imagmag) {
+entry:
+  %multmp = fmul double %realmag, 7.800000e+01
+  %addtmp = fadd double %realstart, %multmp
+  %multmp1 = fmul double %imagmag, 4.000000e+01
+  %addtmp2 = fadd double %imagstart, %multmp1
+  %calltmp = call double @mandelhelp(double %realstart, double %addtmp, double %realmag, double %imagstart, double %addtmp2, double %imagmag)
+  ret double %calltmp
+}
+
+> mandel(-2.3, -1.3, 0.05, 0.07);
+******************************************************************************
+******************************************************************************
+****************************************++++++********************************
+************************************+++++...++++++****************************
+*********************************++++++++.. ...+++++**************************
+*******************************++++++++++..   ..+++++*************************
+******************************++++++++++.     ..++++++************************
+****************************+++++++++....      ..++++++***********************
+**************************++++++++.......      .....++++**********************
+*************************++++++++.   .            ... .++*********************
+***********************++++++++...                     ++*********************
+*********************+++++++++....                    .+++********************
+******************+++..+++++....                      ..+++*******************
+**************++++++. ..........                        +++*******************
+***********++++++++..        ..                         .++*******************
+*********++++++++++...                                 .++++******************
+********++++++++++..                                   .++++******************
+*******++++++.....                                    ..++++******************
+*******+........                                     ...++++******************
+*******+... ....                                     ...++++******************
+*******+++++......                                    ..++++******************
+*******++++++++++...                                   .++++******************
+*********++++++++++...                                  ++++******************
+**********+++++++++..        ..                        ..++*******************
+*************++++++.. ..........                        +++*******************
+******************+++...+++.....                      ..+++*******************
+*********************+++++++++....                    ..++********************
+***********************++++++++...                     +++********************
+*************************+++++++..   .            ... .++*********************
+**************************++++++++.......      ......+++**********************
+****************************+++++++++....      ..++++++***********************
+*****************************++++++++++..     ..++++++************************
+*******************************++++++++++..  ...+++++*************************
+*********************************++++++++.. ...+++++**************************
+***********************************++++++....+++++****************************
+***************************************++++++++*******************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+=> 0
+> mandel(-2, -1, 0.02, 0.04);
+******************************************************************++++++++++++
+****************************************************************++++++++++++++
+*************************************************************+++++++++++++++++
+***********************************************************+++++++++++++++++++
+********************************************************++++++++++++++++++++++
+******************************************************++++++++++++++++++++++..
+***************************************************+++++++++++++++++++++......
+*************************************************++++++++++++++++++++.........
+***********************************************+++++++++++++++++++...       ..
+********************************************++++++++++++++++++++......        
+******************************************++++++++++++++++++++.......         
+***************************************+++++++++++++++++++++..........        
+************************************++++++++++++++++++++++...........         
+********************************++++++++++++++++++++++++.........             
+***************************++++++++...........+++++..............             
+*********************++++++++++++....  .........................              
+***************+++++++++++++++++....   .........   ............               
+***********+++++++++++++++++++++.....                   ......                
+********+++++++++++++++++++++++.......                                        
+******+++++++++++++++++++++++++........                                       
+****+++++++++++++++++++++++++.......                                          
+***+++++++++++++++++++++++.........                                           
+**++++++++++++++++...........                                                 
+*++++++++++++................                                                 
+*++++....................                                                     
+                                                                              
+*++++....................                                                     
+*++++++++++++................                                                 
+**++++++++++++++++...........                                                 
+***+++++++++++++++++++++++.........                                           
+****+++++++++++++++++++++++++.......                                          
+******+++++++++++++++++++++++++........                                       
+********+++++++++++++++++++++++.......                                        
+***********+++++++++++++++++++++.....                   ......                
+***************+++++++++++++++++....   .........   ............               
+*********************++++++++++++....  .........................              
+***************************++++++++...........+++++..............             
+********************************++++++++++++++++++++++++.........             
+************************************++++++++++++++++++++++...........         
+***************************************+++++++++++++++++++++..........        
+=> 0
+> mandel(-0.9, -1.4, 0.02, 0.03);
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+******************************************************************************
+****************************+++++++++++++++++*********************************
+***********************+++++++++++...++++++++++++*****************************
+********************+++++++++++++.. . .++++++++++++++*************************
+*****************++++++++++++++++... ......++++++++++++***********************
+**************+++++++++++++++++++...   .......+++++++++++*********************
+************++++++++++++++++++++....    .... ..++++++++++++*******************
+**********++++++++++++++++++++++......       ...++++++++++++******************
+********+++++++++++++++++++++++.......     .....++++++++++++++****************
+******++++++++++++++++++++++++.......      .....+++++++++++++++***************
+****+++++++++++++++++++++++++.... .         .....+++++++++++++++**************
+**+++++++++++++++++++++++++....                ...++++++++++++++++************
+*+++++++++++++++++++++++.......                ....++++++++++++++++***********
++++++++++++++++++++++..........                .....++++++++++++++++**********
+++++++++++++++++++.............                .......+++++++++++++++*********
++++++++++++++++................                ............++++++++++*********
++++++++++++++.................                  .................+++++********
++++++++++++...       ....                            ..........  .+++++*******
+++++++++++.....                                       ........  ...+++++******
+++++++++......                                                   ..++++++*****
++++++++........                                                   ..+++++*****
++++++..........                                                   ..++++++****
+++++..........                                                  ....++++++****
+++..........                                                    ....+++++++***
+..........                                                     ......+++++++**
+..........                                                      .....+++++++**
+..........                                                       .....++++++**
+.........                                                            .+++++++*
+........                                                             .+++++++*
+ ......                                                             ...+++++++
+   .                                                              ....++++++++
+                                                                   ...++++++++
+                                                                    ..++++++++
+=> 0
+```
+
+So we see that Kaleidoscope has grown to a real and powerful language.
+
+As usually you can experiment with
+[the full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/5).
 
 ## Extending Kaleidoscope: mutable variables

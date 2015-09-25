@@ -204,6 +204,7 @@ impl IRBuilder for parser::Function {
         context.builder.build_ret(&body);
 
         function.verify(LLVMAbortProcessAction);
+        module_provider.get_pass_manager().run(&mut function);
 
         // clear local variables
         context.named_values.clear();
@@ -351,7 +352,8 @@ impl IRBuilder for parser::Expression {
 
                 let (step_value, _) = try!(step_expr.codegen(context, module_provider));
                 let next_value = context.builder.build_fadd(variable.to_ref(), step_value, "nextvar");
-                variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_block].as_mut_slice());
+                let loop_end_block = context.builder.get_insert_block();
+                variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_end_block].as_mut_slice());
 
                 context.builder.build_br(&preloop_block);
 
