@@ -343,9 +343,9 @@ impl IRBuilder for parser::Expression {
 //< ch-2 ch-3 ch-4 ir-expression
 
 
-//< ir-binary
+//< ir-binary binary-builder
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-//> ch-2 ch-3 ch-4 ir-expression ir-binary
+//> ch-2 ch-3 ch-4 ir-expression ir-binary binary-builder
 
                 if name.as_str() == "=" {
                     let var_name = match **lhs {
@@ -365,7 +365,7 @@ impl IRBuilder for parser::Expression {
                     return Ok((value, false))
                 }
 
-//< ch-2 ch-3 ch-4 ir-expression ir-binary
+//< ch-2 ch-3 ch-4 ir-expression ir-binary binary-builder
                 let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
                 let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
 
@@ -394,12 +394,13 @@ impl IRBuilder for parser::Expression {
                                                            "booltmp"),
                             false))
                     },
-//> ch-2 ch-3 ch-4 ir-expression ir-binary
+//> ch-2 ch-3 ch-4 ir-expression ir-binary binary-builder
 /*
 //< ch-2 ch-3 ch-4 ir-expression ir-binary
                     _ => error("invalid binary operator")
 //> ch-2 ch-3 ch-4 ir-expression ir-binary
 */
+//< binary-builder
                     op => {
                         let name = "binary".to_string() + op;
 
@@ -418,7 +419,7 @@ impl IRBuilder for parser::Expression {
 //< ch-2 ch-3 ch-4 ir-expression ir-binary
                 }
             },
-//> ch-2 ch-3 ch-4 ir-binary
+//> ch-2 ch-3 ch-4 ir-binary binary-builder
 
 
 //< ch-2 ch-3 ch-4 ir-call

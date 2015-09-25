@@ -53,6 +53,7 @@ pub struct Function {
     pub body: Expression
 }
 
+//< binary-proto
 #[derive(PartialEq, Clone, Debug)]
 pub struct Prototype {
     pub name: String,
@@ -61,7 +62,7 @@ pub struct Prototype {
 //< ch-1 ch-4 parser-defproto
     pub args: Vec<String>
 }
-//> parser-defproto
+//> parser-defproto  binary-proto
 
 //< parser-expr if-parser for-parser
 #[derive(PartialEq, Clone, Debug)]
@@ -82,13 +83,17 @@ pub enum Expression {
     CallExpr(String, Vec<Expression>)
 }
 //> ch-1 ch-4 parser-expr if-parser for-parser
+//<  binary-proto
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum FunctionType {
     Normal,
+//>  binary-proto
     UnaryOp(String),
+//<  binary-proto
     BinaryOp(String, i32)
 }
+//>  binary-proto
 
 //< ch-1 ch-4 parser-result
 pub type ParsingResult = Result<(Vec<ASTNode>, Vec<Token>), String>;
@@ -233,13 +238,12 @@ fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> Par
 }
 //> parser-parse-extern
 
-//< parser-parse-function
+//< parser-parse-function ops-parse-func
 fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
     // eat Def token
     tokens.pop();
     let mut parsed_tokens = vec!(Def);
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
-    let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 //> ch-1 ch-4 parser-parse-function
 
     match prototype.ftype {
@@ -250,38 +254,42 @@ fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
     };
 
 //< ch-1 ch-4 parser-parse-function
+    let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
     Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
 }
-//> parser-parse-function
+//> parser-parse-function ops-parse-func
 
-//< parser-parse-prototype
+//< parser-parse-prototype binary-parse-proto
 fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
     let mut parsed_tokens = Vec::new();
 
     let 
 //> ch-1 ch-4 parser-parse-prototype
-        (
+/*j*/   (
 //< ch-1 ch-4 parser-parse-prototype
 /*j*/    name
 //> ch-1 ch-4 parser-parse-prototype
-         , ftype
-        )
+/*j*/    , ftype
+/*j*/   )
 //< ch-1 ch-4 parser-parse-prototype
 /*jw*/  = expect_token!([
             Ident(name), Ident(name.clone()), 
 //> ch-1 ch-4 parser-parse-prototype
-            (
+/*j*/       (
 //< ch-1 ch-4 parser-parse-prototype
 /*j*/        name
 //> ch-1 ch-4 parser-parse-prototype
-             , Normal
-            );
+/*j*/        , Normal
+/*j*/       );
+//> binary-parse-proto
             Unary, Unary, {
                 let op = expect_token!([
                         Operator(op), Operator(op.clone()), op
                     ] <= tokens, parsed_tokens, "expected unary operator");
                 ("unary".to_string() + &op, UnaryOp(op))
             };
+//< binary-parse-proto
             Binary, Binary, {
                 let op = expect_token!([
                         Operator(op), Operator(op.clone()), op
@@ -315,9 +323,11 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 //> ch-1 ch-4 parser-parse-prototype
 
     match ftype {
+//> binary-parse-proto
         UnaryOp(_) => if args.len() != 1 {
             return error("invalid number of operands for unary operator")
         },
+//< binary-parse-proto
         BinaryOp(_, _) => if args.len() != 2 {
             return error("invalid number of operands for binary operator")
         },
@@ -328,11 +338,11 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 
     Good(Prototype{name: name, args: args
 //> ch-1 ch-4 parser-parse-prototype
-                   , ftype: ftype
+/*j*/              , ftype: ftype
 //< ch-1 ch-4 parser-parse-prototype
 /*j*/             }, parsed_tokens)
 }
-//> parser-parse-prototype
+//> parser-parse-prototype binary-parse-proto
 
 //< parser-parse-expression
 fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {

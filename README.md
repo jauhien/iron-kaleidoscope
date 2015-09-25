@@ -41,7 +41,8 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * ['For' loop](#for-loop)
     * [Lexer and parser changes for the 'for' loop](#lexer-and-parser-changes-for-the-for-loop)
     * [IR generation for the 'for' loop](#ir-generation-for-the-for-loop)
-* [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
+* [Chapter 5. Extending Kaleidoscope: user-defined operators](#chapter-5-extending-kaleidoscope-user-defined-operators)
+  * [User-defined binary operators](#user-defined-binary-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
 
@@ -286,7 +287,7 @@ declaration      : Extern prototype;
 definition       : Def prototype expression;
 prototype        : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 expression       : [primary_expr (Op primary_expr)*];
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
@@ -353,7 +354,7 @@ with operator precedence.
 
 ```{.ebnf .notation}
 expression       : [primary_expr (Op primary_expr)*];
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
@@ -371,7 +372,7 @@ pub enum Expression {
 }
 ```
 
-`LiteralExpr` is a number (`Literal` token). `VariableExpr` is a variable name (`Ident` token).
+`LiteralExpr` is a number (`Number` token). `VariableExpr` is a variable name (`Ident` token).
 So far we have only one type of variables: function parameters. `BinaryExpr` has information about
 operator name and subexpressions. And `CallExpr` fully corresponds to its definition in the grammar.
 
@@ -641,6 +642,7 @@ fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
     let mut parsed_tokens = vec!(Def);
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
     let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
     Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
 }
 ```
@@ -707,7 +709,7 @@ We will start from easier topic: parsing of primary expressions. Then we will us
 expressions parsing functions to parse operands of binary operators.
 
 ```{.ebnf .notation}
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr];
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 ```
@@ -2523,7 +2525,7 @@ We will evaluate only one branch (this is important, as we can have side effects
 Let's start from formal grammar definition (only the relevant part of the grammar is shown):
 
 ```{.ebnf .notation}
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr | conditional_expr];
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr | conditional_expr];
 conditional_expr : If expression Then expression Else expression;
 ```
 
@@ -2914,7 +2916,7 @@ will be a possibility to write code that computes some values using loops.
 Let's start from the grammar again:
 
 ```{.ebnf .notation}
-primary_expr     : [Ident | Literal | call_expr | parenthesis_expr | conditional_expr | loop_expr];
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr | conditional_expr | loop_expr];
 loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression
 ```
 
@@ -3226,6 +3228,249 @@ attributes #0 = { "no-frame-pointer-elim"="false" }
 Full code for this chapter is as always
 [available](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/4).
 
-## Extending Kaleidoscope: user-defined operators
+## Chapter 5. Extending Kaleidoscope: user-defined operators
+
+Our language is quite full at this moment, but we still lack some really important things.
+E.g. we have no division, logical negation, operation sequencing etc.
+We could implement necessary operators at the compiler level, but it is boring
+and shows us no new ideas. We choose to add the possibility to implement user-defined
+binary and unary operators instead and then implement all the necessary stuff
+in the Kaleidoscope language itself. At the end of this chapter we will be able
+to render the [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set)
+with some simple Kaleidoscope functions.
+
+We're going to implement a mechanism for user-defined operators that is more general than
+e.g. one found in C++. We will be able to define completely new operators with their
+precedences. This is possible because we have easy to extend hand-written parser. One
+of the key features that makes this extension easy is using of operator precedence parsing
+for binary expressions. This allows us to dynamically change grammar during execution.
+
+Here are some examples of the features (user-defined unary and binary operators) we're going
+to implement:
+
+```
+# Logical unary not.
+def unary!(v)
+  if v then
+    0
+  else
+    1;
+
+# Define > with the same precedence as <.
+def binary> 10 (LHS RHS)
+  RHS < LHS;
+
+# Binary "logical or", (note that it does not "short circuit")
+def binary| 5 (LHS RHS)
+  if LHS then
+    1
+  else if RHS then
+    1
+  else
+    0;
+
+# Define = with slightly lower precedence than relationals.
+def binary= 9 (LHS RHS)
+  !(LHS < RHS | LHS > RHS);
+```
+
+You see that at the end of this chapter we'll be able to implement a fair
+amount of things that can be considered significant part of the language itself.
+
+### User-defined binary operators
+
+We need to change our grammar for prototypes to reflect the possibility to
+have binary operators definitions:
+
+```{.ebnf .notation}
+prototype        : [Ident, Binary Op Number ?] OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
+```
+
+Note that we do not change grammar for expressions.
+Anyway we do not use it to parse expressions (as you remember that grammar
+correctly generates binary expressions from the point of view of syntax,
+but doesn't express their semantics).
+
+Implementation as usually starts with changing the lexer. We only add the `Binary`
+keyword there, so I'll not even show this change as it is completely trivial.
+Also note, that we do not need to change lexer to tokenize user-defined operator
+usage, as it already treats any unknown ASCII character as an operator.
+
+Changes in the parser are much more interesting.
+`BinaryExpr` node of AST already contains string that represents operator
+as the corresponding ASCII character, so here we need no changes.
+
+Where the changes start is function definition. We want to be able to
+parse definitions starting from something like `def binary| 5`.
+Let's extend our function AST nodes with additional information
+that shows that this given function is an operator. To this aim let's
+add a function type field to the prototype:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub struct Prototype {
+    pub name: String,
+    pub ftype: FunctionType,
+    pub args: Vec<String>
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum FunctionType {
+    Normal,
+    BinaryOp(String, i32)
+}
+```
+
+For normal functions we hold no additional information, for binary
+operators we store operator's name and precedence.
+
+In a moment we'll change code for prototype parsing, but let's see
+first how we'll change code for function parsing if prototype
+parsing already works:
+
+```rust
+fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
+    // eat Def token
+    tokens.pop();
+    let mut parsed_tokens = vec!(Def);
+    let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
+
+    match prototype.ftype {
+        BinaryOp(ref symbol, precedence) => {
+            settings.operator_precedence.insert(symbol.clone(), precedence);
+        },
+        _ => ()
+    };
+
+    let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
+}
+```
+
+The only thing we've added here is a match on the function type.
+If we are dealing with a binary operator, we add it to the operator
+precedence table. Because we use operator precedence parsing for binary
+expressions that's all we need to be able to dynamically change grammar.
+Note, that we change the operator precedence table before
+function body is parsed. In this way we allow recursion in binary
+operators.
+
+Now the changes for prototype parsing come:
+
+```rust
+fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) -> PartParsingResult<Prototype> {
+    let mut parsed_tokens = Vec::new();
+
+    let (name, ftype) = expect_token!([
+            Ident(name), Ident(name.clone()), (name, Normal);
+            Binary, Binary, {
+                let op = expect_token!([
+                        Operator(op), Operator(op.clone()), op
+                    ] <= tokens, parsed_tokens, "expected binary operator");
+                let precedence = expect_token!(
+                    [Number(value), Number(value), value as i32]
+                    else {30}
+                    <= tokens, parsed_tokens);
+
+                if precedence < 1 || precedence > 100 {
+                    return error("invalid precedecnce: must be 1..100");
+                }
+
+                ("binary".to_string() + &op, BinaryOp(op, precedence))
+            }
+        ] <= tokens, parsed_tokens, "expected function name in prototype");
+
+    expect_token!(
+        [OpeningParenthesis, OpeningParenthesis, ()] <= tokens,
+        parsed_tokens, "expected '(' in prototype");
+
+    let mut args = Vec::new();
+    loop {
+        expect_token!([
+            Ident(arg), Ident(arg.clone()), args.push(arg.clone());
+            Comma, Comma, continue;
+            ClosingParenthesis, ClosingParenthesis, break
+        ] <= tokens, parsed_tokens, "expected ')' in prototype");
+    }
+
+    match ftype {
+        BinaryOp(_, _) => if args.len() != 2 {
+            return error("invalid number of operands for binary operator")
+        },
+        _ => ()
+    };
+
+
+    Good(Prototype{name: name, args: args, ftype: ftype}, parsed_tokens)
+}
+```
+
+Here we literally implement changes in our grammar and make
+parsing code return function type in addition to its name.
+Precedence value is optional and defaults to 30 if not supplied.
+Also we ensure that it is in the `[1..100]` interval.
+We name our function `binary@` where `@` is the operator character.
+That's ok as LLVM allows any characters in function names.
+
+At the end we check that exactly two arguments were declared for
+binary operators. That's all with parsing, let's switch to IR generation
+which is even simpler.
+
+```rust
+            &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
+                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
+                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
+
+                match name.as_str() {
+                    "+" => Ok((context.builder.build_fadd(lhs_value,
+                                                          rhs_value,
+                                                          "addtmp"),
+                               false)),
+                    "-" => Ok((context.builder.build_fsub(lhs_value,
+                                                          rhs_value,
+                                                          "subtmp"),
+                               false)),
+                    "*" => Ok((context.builder.build_fmul(lhs_value,
+                                                          rhs_value,
+                                                          "multmp"),
+                               false)),
+                    "<" => {
+                        let cmp = context.builder.build_fcmp(LLVMRealOLT,
+                                                             lhs_value,
+                                                             rhs_value,
+                                                             "cmptmp");
+
+                        // convert boolean to double 0.0 or 1.0
+                        Ok((context.builder.build_ui_to_fp(cmp,
+                                                           context.ty.to_ref(),
+                                                           "booltmp"),
+                            false))
+                    },
+                    op => {
+                        let name = "binary".to_string() + op;
+
+                        let (function, _) = match module_provider.get_function(&name) {
+                            Some(function) => function,
+                            None => return error("binary operator not found")
+                        };
+
+                        let mut args_value = vec![lhs_value, rhs_value];
+
+                        Ok((context.builder.build_call(function.to_ref(),
+                                                       args_value.as_mut_slice(),
+                                                       "binop"),
+                            false))
+                    }
+                }
+            },
+```
+
+We just change here the default branch of the match on the operator name the
+way that it doesn't generate error, but looks for binary operator function
+declaration. If it finds one, it generates call, otherwise it returns error.
+
+That's all with binary operators. We can define our own items
+that play with other parts of expression just like language native ones.
 
 ## Extending Kaleidoscope: mutable variables

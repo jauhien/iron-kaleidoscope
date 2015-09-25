@@ -175,6 +175,7 @@ fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
     let mut parsed_tokens = vec!(Def);
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
     let body = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
     Good(FunctionNode(Function{prototype: prototype, body: body}), parsed_tokens)
 }
 

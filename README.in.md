@@ -41,7 +41,8 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * ['For' loop](#for-loop)
     * [Lexer and parser changes for the 'for' loop](#lexer-and-parser-changes-for-the-for-loop)
     * [IR generation for the 'for' loop](#ir-generation-for-the-for-loop)
-* [Extending Kaleidoscope: user-defined operators](#extending-kaleidoscope-user-defined-operators)
+* [Chapter 5. Extending Kaleidoscope: user-defined operators](#chapter-5-extending-kaleidoscope-user-defined-operators)
+  * [User-defined binary operators](#user-defined-binary-operators)
 * [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
 
 
@@ -271,7 +272,7 @@ possible expression type:
 <<<src/parser.rs:parser-expr>>>
 ```
 
-`LiteralExpr` is a number (`Literal` token). `VariableExpr` is a variable name (`Ident` token).
+`LiteralExpr` is a number (`Number` token). `VariableExpr` is a variable name (`Ident` token).
 So far we have only one type of variables: function parameters. `BinaryExpr` has information about
 operator name and subexpressions. And `CallExpr` fully corresponds to its definition in the grammar.
 
@@ -1772,6 +1773,133 @@ attributes #0 = { "no-frame-pointer-elim"="false" }
 Full code for this chapter is as always
 [available](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/4).
 
-## Extending Kaleidoscope: user-defined operators
+## Chapter 5. Extending Kaleidoscope: user-defined operators
+
+Our language is quite full at this moment, but we still lack some really important things.
+E.g. we have no division, logical negation, operation sequencing etc.
+We could implement necessary operators at the compiler level, but it is boring
+and shows us no new ideas. We choose to add the possibility to implement user-defined
+binary and unary operators instead and then implement all the necessary stuff
+in the Kaleidoscope language itself. At the end of this chapter we will be able
+to render the [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set)
+with some simple Kaleidoscope functions.
+
+We're going to implement a mechanism for user-defined operators that is more general than
+e.g. one found in C++. We will be able to define completely new operators with their
+precedences. This is possible because we have easy to extend hand-written parser. One
+of the key features that makes this extension easy is using of operator precedence parsing
+for binary expressions. This allows us to dynamically change grammar during execution.
+
+Here are some examples of the features (user-defined unary and binary operators) we're going
+to implement:
+
+```
+# Logical unary not.
+def unary!(v)
+  if v then
+    0
+  else
+    1;
+
+# Define > with the same precedence as <.
+def binary> 10 (LHS RHS)
+  RHS < LHS;
+
+# Binary "logical or", (note that it does not "short circuit")
+def binary| 5 (LHS RHS)
+  if LHS then
+    1
+  else if RHS then
+    1
+  else
+    0;
+
+# Define = with slightly lower precedence than relationals.
+def binary= 9 (LHS RHS)
+  !(LHS < RHS | LHS > RHS);
+```
+
+You see that at the end of this chapter we'll be able to implement a fair
+amount of things that can be considered significant part of the language itself.
+
+### User-defined binary operators
+
+We need to change our grammar for prototypes to reflect the possibility to
+have binary operators definitions:
+
+```{.ebnf .notation}
+<<<grammar.ebnf:binary-grammar>>>
+```
+
+Note that we do not change grammar for expressions.
+Anyway we do not use it to parse expressions (as you remember that grammar
+correctly generates binary expressions from the point of view of syntax,
+but doesn't express their semantics).
+
+Implementation as usually starts with changing the lexer. We only add the `Binary`
+keyword there, so I'll not even show this change as it is completely trivial.
+Also note, that we do not need to change lexer to tokenize user-defined operator
+usage, as it already treats any unknown ASCII character as an operator.
+
+Changes in the parser are much more interesting.
+`BinaryExpr` node of AST already contains string that represents operator
+as the corresponding ASCII character, so here we need no changes.
+
+Where the changes start is function definition. We want to be able to
+parse definitions starting from something like `def binary| 5`.
+Let's extend our function AST nodes with additional information
+that shows that this given function is an operator. To this aim let's
+add a function type field to the prototype:
+
+```rust
+<<<src/parser.rs:binary-proto>>>
+```
+
+For normal functions we hold no additional information, for binary
+operators we store operator's name and precedence.
+
+In a moment we'll change code for prototype parsing, but let's see
+first how we'll change code for function parsing if prototype
+parsing already works:
+
+```rust
+<<<src/parser.rs:ops-parse-func>>>
+```
+
+The only thing we've added here is a match on the function type.
+If we are dealing with a binary operator, we add it to the operator
+precedence table. Because we use operator precedence parsing for binary
+expressions that's all we need to be able to dynamically change grammar.
+Note, that we change the operator precedence table before
+function body is parsed. In this way we allow recursion in binary
+operators.
+
+Now the changes for prototype parsing come:
+
+```rust
+<<<src/parser.rs:binary-parse-proto>>>
+```
+
+Here we literally implement changes in our grammar and make
+parsing code return function type in addition to its name.
+Precedence value is optional and defaults to 30 if not supplied.
+Also we ensure that it is in the `[1..100]` interval.
+We name our function `binary@` where `@` is the operator character.
+That's ok as LLVM allows any characters in function names.
+
+At the end we check that exactly two arguments were declared for
+binary operators. That's all with parsing, let's switch to IR generation
+which is even simpler.
+
+```rust
+<<<src/builder.rs:binary-builder>>>
+```
+
+We just change here the default branch of the match on the operator name the
+way that it doesn't generate error, but looks for binary operator function
+declaration. If it finds one, it generates call, otherwise it returns error.
+
+That's all with binary operators. We can define our own items
+that play with other parts of expression just like language native ones.
 
 ## Extending Kaleidoscope: mutable variables
