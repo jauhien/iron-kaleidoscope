@@ -45,7 +45,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [User-defined binary operators](#user-defined-binary-operators)
   * [User-defined unary operators](#user-defined-unary-operators)
   * [Painting the Mandelbrot set](#painting-the-mandelbrot-set)
-* [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
+* [Chapter 6. Extending Kaleidoscope: mutable variables](#chapter-6-extending-kaleidoscope-mutable-variables)
 
 
 ## Chapter 0. Introduction
@@ -946,17 +946,28 @@ start from command line options parsing. We will use
 [docopt](https://github.com/docopt/docopt.rs) library for this:
 
 ```rust
-docopt!(Args, "
+use docopt::Docopt;
+
+const USAGE: &'static str = "
 Usage: iron_kaleidoscope [(-l | -p | -i)]
 
 Options:
     -l  Run only lexer and show its output.
     -p  Run only parser and show its output.
     -i  Run only IR builder and show its output.
-");
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    flag_l: bool,
+    flag_p: bool,
+    flag_i: bool
+}
 
 fn main() {
-    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.decode())
+        .unwrap_or_else(|e| e.exit());
 
     let stage = if args.flag_l {
         Tokens
@@ -2295,9 +2306,6 @@ Now we modify the main function appropriately, so it calls the main loop
 for the `Exec` stage by default.
 
 ```rust
-#![feature(plugin)]
-#![plugin(docopt_macros)]
-
 extern crate rustc_serialize;
 extern crate docopt;
 
@@ -2310,17 +2318,28 @@ use iron_kaleidoscope::driver::{main_loop,
                                 Tokens
 };
 
-docopt!(Args, "
+use docopt::Docopt;
+
+const USAGE: &'static str = "
 Usage: iron_kaleidoscope [(-l | -p | -i)]
 
 Options:
     -l  Run only lexer and show its output.
     -p  Run only parser and show its output.
     -i  Run only IR builder and show its output.
-");
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    flag_l: bool,
+    flag_p: bool,
+    flag_i: bool
+}
 
 fn main() {
-    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.decode())
+        .unwrap_or_else(|e| e.exit());
 
     let stage = if args.flag_l {
         Tokens
@@ -3848,7 +3867,7 @@ entry:
 }
 ```
 
-Yes, we work with complex numbers using our simple languages. Now we are ready to paint some
+Yes, we work with complex numbers using our simple language. Now we are ready to paint some
 nice pictures.
 
 ```
@@ -4036,4 +4055,4 @@ So we see that Kaleidoscope has grown to a real and powerful language.
 As usually you can experiment with
 [the full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/5).
 
-## Extending Kaleidoscope: mutable variables
+## Chapter 6. Extending Kaleidoscope: mutable variables

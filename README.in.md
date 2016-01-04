@@ -45,7 +45,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [User-defined binary operators](#user-defined-binary-operators)
   * [User-defined unary operators](#user-defined-unary-operators)
   * [Painting the Mandelbrot set](#painting-the-mandelbrot-set)
-* [Extending Kaleidoscope: mutable variables](#extending-kaleidoscope-mutable-variables)
+* [Chapter 6. Extending Kaleidoscope: mutable variables](#chapter-6-extending-kaleidoscope-mutable-variables)
 
 
 ## Chapter 0. Introduction
@@ -2178,7 +2178,7 @@ entry:
 }
 ```
 
-Yes, we work with complex numbers using our simple languages. Now we are ready to paint some
+Yes, we work with complex numbers using our simple language. Now we are ready to paint some
 nice pictures.
 
 ```
@@ -2366,4 +2366,4 @@ So we see that Kaleidoscope has grown to a real and powerful language.
 As usually you can experiment with
 [the full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/5).
 
-## Extending Kaleidoscope: mutable variables
+## Chapter 6. Extending Kaleidoscope: mutable variables

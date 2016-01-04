@@ -1,6 +1,3 @@
-#![feature(plugin)]
-#![plugin(docopt_macros)]
-
 extern crate rustc_serialize;
 extern crate docopt;
 
@@ -10,17 +7,28 @@ use iron_kaleidoscope::driver::{main_loop,
                                 Tokens
 };
 
-docopt!(Args, "
+use docopt::Docopt;
+
+const USAGE: &'static str = "
 Usage: iron_kaleidoscope [(-l | -p | -i)]
 
 Options:
     -l  Run only lexer and show its output.
     -p  Run only parser and show its output.
     -i  Run only IR builder and show its output.
-");
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    flag_l: bool,
+    flag_p: bool,
+    flag_i: bool
+}
 
 fn main() {
-    let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.decode())
+        .unwrap_or_else(|e| e.exit());
 
     if args.flag_p || args.flag_i {
         unimplemented!();
