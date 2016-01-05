@@ -2,73 +2,64 @@
 name = "iron_kaleidoscope"
 version = "0.0.1"
 dependencies = [
- "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
- "docopt_macros 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex_macros 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
+ "docopt 0.6.78 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex_macros 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "aho-corasick"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "memchr 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "docopt"
-version = "0.6.72"
+version = "0.6.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "strsim 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "docopt_macros"
-version = "0.6.72"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "libc"
-version = "0.1.10"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "memchr"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "libc 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "regex"
-version = "0.1.41"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "aho-corasick 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "memchr 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex-syntax 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aho-corasick 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex-syntax 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "regex-syntax"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "regex_macros"
-version = "0.1.21"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
