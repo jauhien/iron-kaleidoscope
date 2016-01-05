@@ -25,7 +25,7 @@ prototype        :
 //< parser-grammar-expr parser-grammar-binary
 expression       : [primary_expr (Op primary_expr)*];
 //> parser-grammar-binary
-//< parser-grammar-primary if-grammar for-grammar unary-grammar
+//< parser-grammar-primary if-grammar for-grammar unary-grammar mutable-grammar-var
 primary_expr     : [Ident | Number | call_expr | parenthesis_expr
 //> parser-grammar parser-grammar-expr parser-grammar-primary
 /*jw*/ | conditional_expr
@@ -33,9 +33,11 @@ primary_expr     : [Ident | Number | call_expr | parenthesis_expr
 /*jw*/ | loop_expr
 //> for-grammar
 /*jw*/ | unary_expr
-//< parser-grammar parser-grammar-expr parser-grammar-primary if-grammar for-grammar
+//> unary-grammar
+/*jw*/ | var_expr
+//< parser-grammar parser-grammar-expr parser-grammar-primary if-grammar for-grammar unary-grammar
 /*j*/ ];
-//> if-grammar for-grammar unary-grammar
+//> if-grammar for-grammar unary-grammar mutable-grammar-var
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
 //> parser-grammar parser-grammar-expr parser-grammar-primary
@@ -48,3 +50,6 @@ loop_expr        : For Ident Op= expression Comma expression [Comma expression]?
 //< unary-grammar
 unary_expr:      : Op primary_expr;
 //> unary-grammar
+//< mutable-grammar-var
+var_expr         : Var Ident [Op= expression]? [Comma Ident [Op= expression]?]* In expression;
+//> mutable-grammar-var

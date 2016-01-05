@@ -46,7 +46,8 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [User-defined unary operators](#user-defined-unary-operators)
   * [Painting the Mandelbrot set](#painting-the-mandelbrot-set)
 * [Chapter 6. Extending Kaleidoscope: mutable variables](#chapter-6-extending-kaleidoscope-mutable-variables)
-
+  * [Mutable variables in Kaleidoscope](#mutable-variables-in-kaleidoscope)
+  * [Adjusting variables for mutation](#adjusting-variables-for-mutation)
 
 ## Chapter 0. Introduction
 
@@ -2367,3 +2368,212 @@ As usually you can experiment with
 [the full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/5).
 
 ## Chapter 6. Extending Kaleidoscope: mutable variables
+
+At the moment our Kaleidoscope is a kind of a functional programming language. We've learn quite a lot
+building it, but because of Kaleidoscope having no mutable variables and being functional we had
+no problems with building LLVM IR directly
+in [SSA form](http://en.wikipedia.org/wiki/Static_single_assignment_form).
+
+Now it's time to go to the land of imperative pain and start generating SSA form for expressions with
+mutable variables. To understand why it's not so simple, you can look in
+[the original guide](http://llvm.org/docs/tutorial/LangImpl7.html#why-is-this-a-hard-problem)
+or read any book about compilers (e.g. "Engineering a Compiler" by Keith Cooper and Linda Torczon).
+
+The good news are that LLVM has pretty good and easy to use mechanism to generate SSA form.
+All LLVM IR must be in the SSA form, but this applies only to register values.
+Values in memory are not a subject of this rule. Futher, you have analysis/transform passes
+in LLVM, that can transform IR operating on memory values to IR in SSA form operating on register
+values.
+
+So what we need to implement mutable variables is:
+
+ 1. store variables in memory (using stack allocation in our case)
+ 2. encode usage of variables as load/store operations
+ 3. run analysis/transform passes that will generate SSA form for us.
+
+To learn more about memory in LLVM see appropriate part of
+[the original tutorial](http://llvm.org/docs/tutorial/LangImpl7.html#memory-in-llvm).
+
+### Mutable variables in Kaleidoscope
+
+At the moment we have only these kinds of variables: function arguments and loop induction variables.
+We'll add the possibility to mutate them and also we'll allow user to define new variables
+that also will be mutable.
+
+In order to mutate variables we'll add new `=` operator and in order to define new ones we'll
+add new syntactic construction:
+
+```{.ebnf .notation}
+<<<grammar.ebnf:mutable-grammar-var>>>
+```
+
+Here is a small example of what we'll be able to do with these new possibilities:
+
+```
+# Define ':' for sequencing: as a low-precedence operator that ignores operands
+# and just returns the RHS.
+def binary : 1 (x y) y;
+
+# Recursive fib, we could do this before.
+def fib(x)
+  if (x < 3) then
+    1
+  else
+    fib(x-1)+fib(x-2);
+
+# Iterative fib.
+def fibi(x)
+  var a = 1, b = 1, c in
+  (for i = 3, i < x in
+     c = a + b :
+     a = b :
+     b = c) :
+  b;
+
+# Call it.
+fibi(10);
+```
+
+### Adjusting variables for mutation
+
+As a first step we'll refactor our code generation so the variables are presented as
+memory locations and then are converted to register values.
+
+At the moment our `named_values` map from the `Context` holds values themselves, we'll
+change code working with it so it uses memory locations instead.
+
+First we'll need to create memory allocas:
+
+```rust
+<<<src/builder.rs:mutable-alloca>>>
+```
+
+This code creates a new builder, positions it at the beginning of the function and builds
+an alloca for one variable.
+
+We have two types of variables now: function parameters and loop variables. Let's create alloca's
+for them when they are defined:
+
+```rust
+<<<src/builder.rs:mutable-param-alloca>>>
+```
+
+This code replaces old one in functions codegeneration. We create an alloca, store parameter value
+to it and insert memory location for variable in context.
+
+In a loop expresion we just create an alloca and store value in it in place of explicit phi node
+generation:
+
+```rust
+<<<src/builder.rs:mutable-loop-alloca>>>
+```
+
+Now we are going to change variables usage. There are two places where we need to do so. First
+the loop expresion (again, no manual phi node manipulation now):
+
+```rust
+<<<src/builder.rs:mutable-loop-load>>>
+```
+
+We load current value here, calculate the next one and store it.
+
+The other place we change is the variable expression:
+
+```rust
+<<<src/builder.rs:mutable-variable>>>
+```
+
+Let's see what IR will be generated now:
+
+```
+> def fib(x)
+.   if (x < 3) then
+.     1
+.   else
+.     fib(x-1)+fib(x-2);
+
+define double @fib(double %x) {
+entry:
+  %x1 = alloca double
+  store double %x, double* %x1
+  %cmptmp = fcmp olt double %x, 3.000000e+00
+  br i1 %cmptmp, label %ifcont, label %else
+
+else:                                             ; preds = %entry
+  %subtmp = fadd double %x, -1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp5 = fadd double %x, -2.000000e+00
+  %calltmp6 = call double @fib(double %subtmp5)
+  %addtmp = fadd double %calltmp, %calltmp6
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+  ret double %ifphi
+}
+```
+
+We are ready to generate SSA form now. It is surprisingly easy, just add one pass:
+
+```rust
+<<<src/builder.rs:mutable-pass>>>
+```
+
+Kaleidoscope REPL starts to generate what we want:
+
+```
+> def fib(x)
+.   if (x < 3) then
+.     1
+.   else
+.     fib(x-1)+fib(x-2);
+
+define double @fib(double %x) {
+entry:
+  %cmptmp = fcmp olt double %x, 3.000000e+00
+  br i1 %cmptmp, label %ifcont, label %else
+
+else:                                             ; preds = %entry
+  %subtmp = fadd double %x, -1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp5 = fadd double %x, -2.000000e+00
+  %calltmp6 = call double @fib(double %subtmp5)
+  %addtmp = fadd double %calltmp, %calltmp6
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+  ret double %ifphi
+}
+```
+
+It is interesting to see how did this IR look when we generated phi nodes by hand:
+
+```
+> def fib(x)
+.   if (x < 3) then
+.     1
+.   else
+.     fib(x-1)+fib(x-2);
+
+define double @fib(double %x) {
+entry:
+  %cmptmp = fcmp olt double %x, 3.000000e+00
+  br i1 %cmptmp, label %ifcont, label %else
+
+else:                                             ; preds = %entry
+  %subtmp = fadd double %x, -1.000000e+00
+  %calltmp = call double @fib(double %subtmp)
+  %subtmp1 = fadd double %x, -2.000000e+00
+  %calltmp2 = call double @fib(double %subtmp1)
+  %addtmp = fadd double %calltmp, %calltmp2
+  br label %ifcont
+
+ifcont:                                           ; preds = %entry, %else
+  %ifphi = phi double [ %addtmp, %else ], [ 1.000000e+00, %entry ]
+  ret double %ifphi
+}
+```
+
+Ok, it looks the same apart from automatically generated names. Now we can implement our assignment
+operator.

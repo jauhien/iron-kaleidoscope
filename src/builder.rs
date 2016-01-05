@@ -79,7 +79,9 @@ pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
     let module = core::Module::new(name);
     let mut function_passmanager = core::FunctionPassManager::new(&module);
 //> ch-3 ch-4 ch-5 jit-fpm
+//< mutable-pass
     function_passmanager.add_promote_memory_to_register_pass();
+//> mutable-pass
 //< ch-3 ch-4 ch-5 jit-fpm
     function_passmanager.add_basic_alias_analysis_pass();
     function_passmanager.add_instruction_combining_pass();
@@ -241,19 +243,22 @@ impl IRBuilder for parser::Function {
         let mut bb = function.append_basic_block_in_context(&mut context.context, "entry");
         context.builder.position_at_end(&mut bb);
 
+//< mutable-param-alloca
         // set function parameters
         for (param, arg) in function.params_iter().zip(&self.prototype.args) {
 //> ch-2 ch-3 ch-4 ch-5 ir-function
             let arg_alloca = create_entry_block_alloca(context, &function, arg);
             context.builder.build_store(param.to_ref(), arg_alloca);
             context.named_values.insert(arg.clone(), arg_alloca);
+//> mutable-param-alloca
             /*
 //< ch-2 ch-3 ch-4 ch-5 ir-function
             context.named_values.insert(arg.clone(), param.to_ref());
 //> ch-2 ch-3 ch-4 ch-5 ir-function
             */
-//< ch-2 ch-3 ch-4 ch-5 ir-function
+//< ch-2 ch-3 ch-4 ch-5 ir-function mutable-param-alloca
         }
+//> mutable-param-alloca
 
 //< jit-run-passes
         // emit function body
@@ -282,6 +287,7 @@ impl IRBuilder for parser::Function {
 }
 //> ch-2 ch-3 ch-4 ch-5 ir-function jit-run-passes
 
+//< mutable-alloca
 fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
     let mut builder = core::Builder::new();
     let mut bb = function.get_entry();
@@ -289,7 +295,7 @@ fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_
     builder.position(&mut bb, &fi);
     builder.build_alloca(context.ty.to_ref(), var_name)
 }
-
+//> mutable-alloca
 
 //< ch-2 ch-3 ch-4 ch-5 ir-expression
 impl IRBuilder for parser::Expression {
@@ -304,24 +310,25 @@ impl IRBuilder for parser::Expression {
 //> ir-literal
 
 
-//< ir-variable
+//< ir-variable mutable-variable
             &parser::VariableExpr(ref name) => {
                 match context.named_values.get(name) {
                     Some(value) => {
 //> ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
                         let var = context.builder.build_load(*value, name);
                         Ok((var, false))
+//> mutable-variable
 /*
 //< ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
                         Ok((*value, false))
 //> ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
 */
-//< ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
+//< ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable mutable-variable
                     },
                     None => error("unknown variable name")
                 }
             },
-//> ch-2 ch-3 ch-4 ir-expression ir-variable
+//> ch-2 ch-3 ch-4 ir-expression ir-variable mutable-variable
 
 
 //< unary-builder
@@ -503,8 +510,10 @@ impl IRBuilder for parser::Expression {
                 let mut function = preheader_block.get_parent();
 
 //> ch-4 ch-5 for-builder
+//< mutable-loop-alloca
                 let variable = create_entry_block_alloca(context, &function, var_name);
                 context.builder.build_store(start_value, variable);
+//> mutable-loop-alloca
 
 //< ch-4 ch-5 for-builder
                 let mut preloop_block = function.append_basic_block_in_context(&mut context.context, "preloop");
@@ -538,9 +547,11 @@ impl IRBuilder for parser::Expression {
 
                 let (step_value, _) = try!(step_expr.codegen(context, module_provider));
 //> ch-4 ch-5 for-builder
+//< mutable-loop-load
                 let cur_value = context.builder.build_load(variable, var_name);
                 let next_value = context.builder.build_fadd(cur_value, step_value, "nextvar");
                 context.builder.build_store(next_value, variable);
+//> mutable-loop-load
 
 /*
 //< ch-4 ch-5 for-builder
