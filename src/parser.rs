@@ -122,10 +122,12 @@ pub struct ParserSettings {
 }
 //> parser-settings
 
-//< parser-default-settings
+//< parser-default-settings mutable-parser-default-settings
 pub fn default_parser_settings() -> ParserSettings {
     let mut operator_precedence = HashMap::new();
+//> ch-1 ch-4 ch-5 parser-default-settings
     operator_precedence.insert("=".to_string(), 2);
+//< ch-1 ch-4 ch-5 parser-default-settings
     operator_precedence.insert("<".to_string(), 10);
     operator_precedence.insert("+".to_string(), 20);
     operator_precedence.insert("-".to_string(), 20);
@@ -133,7 +135,7 @@ pub fn default_parser_settings() -> ParserSettings {
 
     ParserSettings{operator_precedence: operator_precedence}
 }
-//> parser-default-settings
+//> parser-default-settings mutable-parser-default-settings
 
 //< parser-parse parser-parse-sign
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult

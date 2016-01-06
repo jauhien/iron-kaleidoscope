@@ -67,7 +67,6 @@ pub struct ParserSettings {
 
 pub fn default_parser_settings() -> ParserSettings {
     let mut operator_precedence = HashMap::new();
-    operator_precedence.insert("=".to_string(), 2);
     operator_precedence.insert("<".to_string(), 10);
     operator_precedence.insert("+".to_string(), 20);
     operator_precedence.insert("-".to_string(), 20);

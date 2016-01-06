@@ -48,6 +48,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
 * [Chapter 6. Extending Kaleidoscope: mutable variables](#chapter-6-extending-kaleidoscope-mutable-variables)
   * [Mutable variables in Kaleidoscope](#mutable-variables-in-kaleidoscope)
   * [Adjusting variables for mutation](#adjusting-variables-for-mutation)
+  * [Assignmnet operator](#assignmnet-operator)
 
 ## Chapter 0. Introduction
 
@@ -117,7 +118,7 @@ sin(1)
 ```
 
 Every statement except of definitions and declarations in Kaleidoscope is an expression and has the corresponding value. Quite
-similar to Rust. Function body is just an expresion, its value is returned. No explicit return operator is used.
+similar to Rust. Function body is just an expression, its value is returned. No explicit return operator is used.
 
 To show the end of an expression or definition (declaration) we use ';' character. ',' character in function prototypes/calls
 is equivalent to the space character. Comments are started by '#' and last until the end of the line.
@@ -839,7 +840,6 @@ Let's create a function that fills this map with some operators:
 ```rust
 pub fn default_parser_settings() -> ParserSettings {
     let mut operator_precedence = HashMap::new();
-    operator_precedence.insert("=".to_string(), 2);
     operator_precedence.insert("<".to_string(), 10);
     operator_precedence.insert("+".to_string(), 20);
     operator_precedence.insert("-".to_string(), 20);
@@ -4058,7 +4058,7 @@ As usually you can experiment with
 
 ## Chapter 6. Extending Kaleidoscope: mutable variables
 
-At the moment our Kaleidoscope is a kind of a functional programming language. We've learn quite a lot
+At the moment our Kaleidoscope is a kind of a functional programming language. We've learnt quite a lot
 building it, but because of Kaleidoscope having no mutable variables and being functional we had
 no problems with building LLVM IR directly
 in [SSA form](http://en.wikipedia.org/wiki/Static_single_assignment_form).
@@ -4162,7 +4162,7 @@ for them when they are defined:
 This code replaces old one in functions codegeneration. We create an alloca, store parameter value
 to it and insert memory location for variable in context.
 
-In a loop expresion we just create an alloca and store value in it in place of explicit phi node
+In a loop expression we just create an alloca and store value in it in place of explicit phi node
 generation:
 
 ```rust
@@ -4171,7 +4171,7 @@ generation:
 ```
 
 Now we are going to change variables usage. There are two places where we need to do so. First
-the loop expresion (again, no manual phi node manipulation now):
+the loop expression (again, no manual phi node manipulation now):
 
 ```rust
                 let cur_value = context.builder.build_load(variable, var_name);
@@ -4289,3 +4289,67 @@ ifcont:                                           ; preds = %entry, %else
 
 Ok, it looks the same apart from automatically generated names. Now we can implement our assignment
 operator.
+
+### Assignmnet operator
+
+Implementing assignment operator is completely straightforward. First we add it into
+the table of predefined operators:
+
+```rust
+pub fn default_parser_settings() -> ParserSettings {
+    let mut operator_precedence = HashMap::new();
+    operator_precedence.insert("=".to_string(), 2);
+    operator_precedence.insert("<".to_string(), 10);
+    operator_precedence.insert("+".to_string(), 20);
+    operator_precedence.insert("-".to_string(), 20);
+    operator_precedence.insert("*".to_string(), 40);
+
+    ParserSettings{operator_precedence: operator_precedence}
+}
+```
+
+Then we implement codegen for it:
+
+```rust
+                if name.as_str() == "=" {
+                    let var_name = match **lhs {
+                        parser::VariableExpr(ref nm) => nm,
+                        _ => return error("destination of '=' must be a variable")
+                    };
+
+                    let (value, _) = try!(rhs.codegen(context, module_provider));
+
+                    let variable = match context.named_values.get(var_name) {
+                        Some(vl) => *vl,
+                        None => return error("unknown variable name")
+                    };
+
+                    context.builder.build_store(value, variable);
+
+                    return Ok((value, false))
+                }
+```
+
+We codegen differently comparing to other binary operators. First we
+check that destination is a variable. Then we generate RHS and store it in the variable
+if it is found.
+
+We can run something like this now:
+
+```
+# Function to print a double.
+extern printd(x);
+
+# Define ':' for sequencing: as a low-precedence operator that ignores operands
+# and just returns the RHS.
+def binary : 1 (x y) y;
+
+def test(x)
+  printd(x) :
+  x = 4 :
+  printd(x);
+
+test(123);
+```
+
+This will first print `123` and then `4` showing that our assignment operator really works.

@@ -356,6 +356,7 @@ impl IRBuilder for parser::Expression {
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
 //> ch-2 ch-3 ch-4 ch-5 ir-expression ir-binary binary-builder
 
+//< mutable-assignment-codegen
                 if name.as_str() == "=" {
                     let var_name = match **lhs {
                         parser::VariableExpr(ref nm) => nm,
@@ -373,6 +374,7 @@ impl IRBuilder for parser::Expression {
 
                     return Ok((value, false))
                 }
+//> mutable-assignment-codegen
 
 //< ch-2 ch-3 ch-4 ch-5 ir-expression ir-binary binary-builder
                 let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
