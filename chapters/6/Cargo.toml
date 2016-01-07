@@ -1,0 +1,15 @@
+[package]
+
+name = "iron_kaleidoscope"
+version = "0.0.1"
+authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
+
+[dependencies]
+docopt = "0.6"
+regex = "*"
+regex_macros = "*"
+rustc-serialize = "0.3"
+llvm-sys = "*"
+
+[dependencies.iron_llvm]
+git = "https://github.com/jauhien/iron-llvm.git"

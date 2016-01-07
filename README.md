@@ -49,6 +49,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Mutable variables in Kaleidoscope](#mutable-variables-in-kaleidoscope)
   * [Adjusting variables for mutation](#adjusting-variables-for-mutation)
   * [Assignmnet operator](#assignmnet-operator)
+  * [User-defined local variables](#user-defined-local-variables)
 
 ## Chapter 0. Introduction
 
@@ -4353,3 +4354,206 @@ test(123);
 ```
 
 This will first print `123` and then `4` showing that our assignment operator really works.
+
+### User-defined local variables
+
+Introduction of local variables starts like every change in syntax from the lexer
+(grammar was already defined above):
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Token {
+    Def,
+    Extern,
+    If,
+    Then,
+    Else,
+    For,
+    In,
+    Binary,
+    Unary,
+    Var,
+    Delimiter, //';' character
+    OpeningParenthesis,
+    ClosingParenthesis,
+    Comma,
+    Ident(String),
+    Number(f64),
+    Operator(String)
+}
+
+pub fn tokenize(input: &str) -> Vec<Token> {
+    // regex for commentaries (start with #, end with the line end)
+    let comment_re = regex!(r"(?m)#.*\n");
+    // remove commentaries from the input stream
+    let preprocessed = comment_re.replace_all(input, "\n");
+
+    let mut result = Vec::new();
+
+    // regex for token, just union of straightforward regexes for different token types
+    // operators are parsed the same way as identifier and separated later
+    let token_re = regex!(concat!(
+        r"(?P<ident>\p{Alphabetic}\w*)|",
+        r"(?P<number>\d+\.?\d*)|",
+        r"(?P<delimiter>;)|",
+        r"(?P<oppar>\()|",
+        r"(?P<clpar>\))|",
+        r"(?P<comma>,)|",
+        r"(?P<operator>\S)"));
+
+    for cap in token_re.captures_iter(preprocessed.as_str()) {
+        let token = if cap.name("ident").is_some() {
+            match cap.name("ident").unwrap() {
+                "def" => Def,
+                "extern" => Extern,
+                "if" => If,
+                "then" => Then,
+                "else" => Else,
+                "for" => For,
+                "in" => In,
+                "binary" => Binary,
+                "unary" => Unary,
+                "var" => Var,
+                ident => Ident(ident.to_string())
+            }
+        } else if cap.name("number").is_some() {
+            match cap.name("number").unwrap().parse() {
+                Ok(number) => Number(number),
+                Err(_) => panic!("Lexer failed trying to parse number")
+            }
+        } else if cap.name("delimiter").is_some() {
+            Delimiter
+        } else if cap.name("oppar").is_some() {
+            OpeningParenthesis
+        } else if cap.name("clpar").is_some() {
+            ClosingParenthesis
+        } else if cap.name("comma").is_some() {
+            Comma
+        } else {
+            Operator(cap.name("operator").unwrap().to_string())
+        };
+
+        result.push(token)
+    }
+
+    result
+}
+```
+
+We just add new keyword `var` here.
+
+Than we change parser:
+
+```rust
+#[derive(PartialEq, Clone, Debug)]
+pub enum Expression {
+    LiteralExpr(f64),
+    VariableExpr(String),
+    UnaryExpr(String, Box<Expression>),
+    BinaryExpr(String, Box<Expression>, Box<Expression>),
+    ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
+    LoopExpr{var_name: String, start_expr: Box<Expression>, end_expr: Box<Expression>, step_expr: Box<Expression>, body_expr: Box<Expression>},
+    VarExpr{vars: Vec<(String, Expression)>, body_expr: Box<Expression>},
+    CallExpr(String, Vec<Expression>)
+}
+
+fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    match tokens.last() {
+        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&For) => parse_loop_expr(tokens, settings),
+        Some(&Var) => parse_var_expr(tokens, settings),
+        Some(&Operator(_)) => parse_unary_expr(tokens, settings),
+        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        None => return NotComplete,
+        _ => error("unknow token when expecting an expression")
+    }
+}
+
+fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
+    tokens.pop();
+    let mut parsed_tokens = vec![Var];
+    let mut vars = Vec::new();
+
+    loop {
+        let var_name = expect_token!(
+            [Ident(name), Ident(name.clone()), name] <= tokens,
+            parsed_tokens, "expected identifier list after var");
+
+        let init_expr = expect_token!(
+            [Operator(op), Operator(op.clone()), {
+                if op.as_str() != "=" {
+                    return error("expected '=' in variable initialization")
+                }
+                parse_try!(parse_expr, tokens, settings, parsed_tokens)
+            }]
+            else {LiteralExpr(0.0)}
+            <= tokens, parsed_tokens);
+
+        vars.push((var_name, init_expr));
+
+        expect_token!(
+            [Comma, Comma, ()]
+            else {break}
+            <= tokens, parsed_tokens);
+    }
+
+    expect_token!(
+        [In, In, ()] <= tokens,
+        parsed_tokens, "expected 'in' after var");
+
+    let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
+
+    Good(VarExpr{vars: vars, body_expr: box body_expr}, parsed_tokens)
+}
+```
+
+Here we add new AST entry, namely var expression. It consists of the vector of binding/value pairs
+and the body expression. Than we dispatch on `Var` literal in the primary expression parsing
+function. In the var expression parsing function we straightforwadly parse list
+of bindings (if no value provided, we set it to 0). Finally we parse body expression.
+
+Builder changes follow:
+
+```rust
+            &parser::VarExpr{ref vars, ref body_expr} => {
+                let mut old_bindings = Vec::new();
+                let function = context.builder.get_insert_block().get_parent();
+                for var in vars.iter() {
+                    let (ref name, ref init_expr) = *var;
+                    let (init_value, _) = try!(init_expr.codegen(context, module_provider));
+                    let variable = create_entry_block_alloca(context, &function, name);
+                    context.builder.build_store(init_value, variable);
+                    old_bindings.push(context.named_values.remove(name));
+                    context.named_values.insert(name.clone(), variable);
+                }
+
+                let (body_value, _) = try!(body_expr.codegen(context, module_provider));
+
+                let mut old_iter = old_bindings.iter();
+                for var in vars.iter() {
+                    let (ref name, _) = *var;
+                    context.named_values.remove(name);
+
+                    match old_iter.next() {
+                        Some(&Some(value)) => {context.named_values.insert(name.clone(), value);},
+                        _ => ()
+                    };
+                }
+
+                Ok((body_value, false))
+            }
+```
+
+We save old bindings, generate new ones and create allocas for them, insert them into context
+and than generate code for the body expression. At the end we restore old bindings back.
+
+That's all we needed to add properly scoped mutable local variables. LLVM allowed us
+to avoid dirty our hands with "iterated dominance frontier" and to have our code concise and easy.
+
+[The full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/6)
+is available. This chapter finishes the main part of the tutorial about writing REPL using LLVM.
+
+Next parts will cover different topics (like debug information, different JITs etc.), but the
+main work is done.

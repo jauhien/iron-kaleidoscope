@@ -1,0 +1,7 @@
+main.rs.in    src/main.rs
+lib.rs.in     src/lib.rs
+builder.rs.in src/builder.rs
+jitter.rs.in  src/jitter.rs
+lexer.rs.in   src/lexer.rs
+parser.rs.in  src/parser.rs
+driver.rs.in  src/driver.rs

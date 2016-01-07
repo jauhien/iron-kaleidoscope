@@ -49,6 +49,7 @@ the latest Rust and on improvinvg the way it uses LLVM.
   * [Mutable variables in Kaleidoscope](#mutable-variables-in-kaleidoscope)
   * [Adjusting variables for mutation](#adjusting-variables-for-mutation)
   * [Assignmnet operator](#assignmnet-operator)
+  * [User-defined local variables](#user-defined-local-variables)
 
 ## Chapter 0. Introduction
 
@@ -2617,3 +2618,43 @@ test(123);
 ```
 
 This will first print `123` and then `4` showing that our assignment operator really works.
+
+### User-defined local variables
+
+Introduction of local variables starts like every change in syntax from the lexer
+(grammar was already defined above):
+
+```rust
+<<<src/lexer.rs:mutable-var-lexer>>>
+```
+
+We just add new keyword `var` here.
+
+Than we change parser:
+
+```rust
+<<<src/parser.rs:mutable-var-parser>>>
+```
+
+Here we add new AST entry, namely var expression. It consists of the vector of binding/value pairs
+and the body expression. Than we dispatch on `Var` literal in the primary expression parsing
+function. In the var expression parsing function we straightforwadly parse list
+of bindings (if no value provided, we set it to 0). Finally we parse body expression.
+
+Builder changes follow:
+
+```rust
+<<<src/builder.rs:mutable-var-builder>>>
+```
+
+We save old bindings, generate new ones and create allocas for them, insert them into context
+and than generate code for the body expression. At the end we restore old bindings back.
+
+That's all we needed to add properly scoped mutable local variables. LLVM allowed us
+to avoid dirty our hands with "iterated dominance frontier" and to have our code concise and easy.
+
+[The full code for this chapter](https://github.com/jauhien/iron-kaleidoscope/tree/master/chapters/6)
+is available. This chapter finishes the main part of the tutorial about writing REPL using LLVM.
+
+Next parts will cover different topics (like debug information, different JITs etc.), but the
+main work is done.

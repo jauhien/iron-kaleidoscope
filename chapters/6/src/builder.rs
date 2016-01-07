@@ -1,43 +1,19 @@
-//< ch-2 ch-3 ch-4 ch-5 ch-6 ir-context
 use std::collections::HashMap;
-//> ir-context
 use std::iter;
 
-use llvm_sys::LLVMRealPredicate::
-//> ch-2 ch-3
-/*j*/{
-/*j*/ LLVMRealONE,
-//< ch-2 ch-3
-/*j*/ LLVMRealOLT
-//> ch-2 ch-3
-/*j*/}
-//< ch-2 ch-3
-/*j*/;
+use llvm_sys::LLVMRealPredicate::{LLVMRealONE,LLVMRealOLT};
 use llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction;
 use llvm_sys::core::LLVMDeleteFunction;
-//< ir-context
 use llvm_sys::prelude::LLVMValueRef;
 
 use iron_llvm::core;
-//> ch-2 ch-3 ir-context
 use iron_llvm::core::basic_block::{BasicBlock};
 use iron_llvm::core::instruction::{PHINode, PHINodeRef};
-//< ch-2 ch-3
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value, RealConstRef, RealConstCtor};
-//< ir-context
-use iron_llvm::core::types::{
-//> ir-context
-/*j*/  FunctionTypeCtor, 
-/*j*/  FunctionTypeRef, 
-//< ir-context
-/*j*/  RealTypeCtor,
-/*jw*/ RealTypeRef
-/*j*/};
+use iron_llvm::core::types::{FunctionTypeCtor, FunctionTypeRef, RealTypeCtor, RealTypeRef};
 use iron_llvm::{LLVMRef, LLVMRefCtor};
-//> ir-context
 
 use parser;
-//< ir-context
 
 pub struct Context {
     context: core::Context,
@@ -61,28 +37,18 @@ impl Context {
         }
     }
 }
-//> ir-context
 
-//< ir-module-provider jit-mp
 pub trait ModuleProvider {
     fn dump(&self);
     fn get_module(&mut self) -> &mut core::Module;
     fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)>;
-//> ch-2 ir-module-provider
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager;
-//< ch-2 ir-module-provider
 }
-//> ch-2 ir-module-provider jit-mp
 
-//< jit-fpm
 pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
     let module = core::Module::new(name);
     let mut function_passmanager = core::FunctionPassManager::new(&module);
-//> ch-3 ch-4 ch-5 jit-fpm
-//< mutable-pass
     function_passmanager.add_promote_memory_to_register_pass();
-//> mutable-pass
-//< ch-3 ch-4 ch-5 jit-fpm
     function_passmanager.add_basic_alias_analysis_pass();
     function_passmanager.add_instruction_combining_pass();
     function_passmanager.add_reassociate_pass();
@@ -92,32 +58,21 @@ pub fn new_module(name: &str) -> (core::Module, core::FunctionPassManager) {
 
     (module, function_passmanager)
 }
-//> jit-fpm
-//< ch-2 ir-module-provider jit-mp
 
 pub struct SimpleModuleProvider {
-//> ch-2 ir-module-provider
     function_passmanager: core::FunctionPassManager,
-//< ch-2 ir-module-provider
     module: core::Module
 }
 
 impl SimpleModuleProvider {
     pub fn new(name: &str) -> SimpleModuleProvider {
-//> ch-2 ir-module-provider
         let (module, function_passmanager) = new_module(name);
-//> ch-3 ch-4 ch-5 jit-mp
 /*
-//< ch-2 ir-module-provider
         let module = core::Module::new(name);
-//> ch-2 ir-module-provider
 */
-//< ch-2 ch-3 ch-4 ch-5 ir-module-provider jit-mp
 
         SimpleModuleProvider {
-//> ch-2 ir-module-provider
             function_passmanager: function_passmanager,
-//< ch-2 ir-module-provider
             module: module
         }
     }
@@ -138,16 +93,12 @@ impl ModuleProvider for SimpleModuleProvider {
             None => None
         }
     }
-//> ch-2 ir-module-provider
 
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
         &mut self.function_passmanager
     }
-//< ch-2 ir-module-provider
 }
-//> ir-module-provider jit-mp
 
-//< ir-builder-trait
 pub type IRBuildingResult = Result<(LLVMValueRef, bool), String>;
 
 fn error(message : &str) -> IRBuildingResult {
@@ -157,9 +108,7 @@ fn error(message : &str) -> IRBuildingResult {
 pub trait IRBuilder {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult;
 }
-//> ir-builder-trait
 
-//< ir-top-level
 impl IRBuilder for parser::ParsingResult {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
@@ -188,9 +137,7 @@ impl IRBuilder for parser::ASTNode {
         }
     }
 }
-//> ir-top-level
 
-//< ir-prototype
 impl IRBuilder for parser::Prototype {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         // check if declaration with this name was already done
@@ -227,9 +174,7 @@ impl IRBuilder for parser::Prototype {
         Ok((function.to_ref(), false))
     }
 }
-//> ir-prototype
 
-//< ir-function
 impl IRBuilder for parser::Function {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         // we have no global variables, so we can clear all the
@@ -243,24 +188,16 @@ impl IRBuilder for parser::Function {
         let mut bb = function.append_basic_block_in_context(&mut context.context, "entry");
         context.builder.position_at_end(&mut bb);
 
-//< mutable-param-alloca
         // set function parameters
         for (param, arg) in function.params_iter().zip(&self.prototype.args) {
-//> ch-2 ch-3 ch-4 ch-5 ir-function
             let arg_alloca = create_entry_block_alloca(context, &function, arg);
             context.builder.build_store(param.to_ref(), arg_alloca);
             context.named_values.insert(arg.clone(), arg_alloca);
-//> mutable-param-alloca
             /*
-//< ch-2 ch-3 ch-4 ch-5 ir-function
             context.named_values.insert(arg.clone(), param.to_ref());
-//> ch-2 ch-3 ch-4 ch-5 ir-function
             */
-//< ch-2 ch-3 ch-4 ch-5 ir-function mutable-param-alloca
         }
-//> mutable-param-alloca
 
-//< jit-run-passes
         // emit function body
         // if error occured, remove the function, so user can
         // redefine it
@@ -276,18 +213,14 @@ impl IRBuilder for parser::Function {
         context.builder.build_ret(&body);
 
         function.verify(LLVMAbortProcessAction);
-//> ch-2 ir-function
         module_provider.get_pass_manager().run(&mut function);
-//< ch-2 ir-function
 
         // clear local variables
         context.named_values.clear();
         Ok((function.to_ref(), self.prototype.name.as_str() == ""))
     }
 }
-//> ch-2 ch-3 ch-4 ch-5 ir-function jit-run-passes
 
-//< mutable-alloca
 fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_name: &str) -> LLVMValueRef {
     let mut builder = core::Builder::new();
     let mut bb = function.get_entry();
@@ -295,43 +228,31 @@ fn create_entry_block_alloca(context: &mut Context, function: &FunctionRef, var_
     builder.position(&mut bb, &fi);
     builder.build_alloca(context.ty.to_ref(), var_name)
 }
-//> mutable-alloca
 
-//< ch-2 ch-3 ch-4 ch-5 ir-expression
 impl IRBuilder for parser::Expression {
     fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
         match self {
 
 
-//< ir-literal
             &parser::LiteralExpr(ref value) => {
                 Ok((RealConstRef::get(&context.ty, *value).to_ref(), false))
             },
-//> ir-literal
 
 
-//< ir-variable mutable-variable
             &parser::VariableExpr(ref name) => {
                 match context.named_values.get(name) {
                     Some(value) => {
-//> ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
                         let var = context.builder.build_load(*value, name);
                         Ok((var, false))
-//> mutable-variable
 /*
-//< ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
                         Ok((*value, false))
-//> ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable
 */
-//< ch-2 ch-3 ch-4 ch-5 ir-expression ir-variable mutable-variable
                     },
                     None => error("unknown variable name")
                 }
             },
-//> ch-2 ch-3 ch-4 ir-expression ir-variable mutable-variable
 
 
-//< unary-builder
             &parser::UnaryExpr(ref operator, ref operand) => {
                 let (operand, _) = try!(operand.codegen(context, module_provider));
 
@@ -348,15 +269,10 @@ impl IRBuilder for parser::Expression {
                                                 "unop"),
                     false))
             },
-//> unary-builder
-//< ch-2 ch-3 ch-4 ir-expression
 
 
-//< ir-binary binary-builder
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-//> ch-2 ch-3 ch-4 ch-5 ir-expression ir-binary binary-builder
 
-//< mutable-assignment-codegen
                 if name.as_str() == "=" {
                     let var_name = match **lhs {
                         parser::VariableExpr(ref nm) => nm,
@@ -374,9 +290,7 @@ impl IRBuilder for parser::Expression {
 
                     return Ok((value, false))
                 }
-//> mutable-assignment-codegen
 
-//< ch-2 ch-3 ch-4 ch-5 ir-expression ir-binary binary-builder
                 let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
                 let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
 
@@ -405,13 +319,9 @@ impl IRBuilder for parser::Expression {
                                                            "booltmp"),
                             false))
                     },
-//> ch-2 ch-3 ch-4 ch-5 ir-expression ir-binary binary-builder
 /*
-//< ch-2 ch-3 ch-4 ir-expression ir-binary
                     _ => error("invalid binary operator")
-//> ch-2 ch-3 ch-4 ir-expression ir-binary
 */
-//< ch-5 binary-builder
                     op => {
                         let name = "binary".to_string() + op;
 
@@ -427,13 +337,10 @@ impl IRBuilder for parser::Expression {
                                                        "binop"),
                             false))
                     }
-//< ch-2 ch-3 ch-4 ir-expression ir-binary
                 }
             },
-//> ch-2 ch-3 ch-4 ir-binary binary-builder
 
 
-//< ch-2 ch-3 ch-4 ir-call
             &parser::CallExpr(ref name, ref args) => {
                 let (function, _) = match module_provider.get_function(name) {
                     Some(function) => function,
@@ -454,29 +361,21 @@ impl IRBuilder for parser::Expression {
                                                args_value.as_mut_slice(),
                                                "calltmp"),
                     false))
-            }
-//> ch-2 ch-3 ir-expression ir-call
-/*j*/       ,
+            },
 
 
-//< if-builder
             &parser::ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
-//< if-builder-cond
                 let (cond_value, _) = try!(cond_expr.codegen(context, module_provider));
                 let zero = RealConstRef::get(&context.ty, 0.0);
                 let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
-//> if-builder-cond
 
-//< if-builder-br
                 let block = context.builder.get_insert_block();
                 let mut function = block.get_parent();
                 let mut then_block = function.append_basic_block_in_context(&mut context.context, "then");
                 let mut else_block = function.append_basic_block_in_context(&mut context.context, "else");
                 let mut merge_block = function.append_basic_block_in_context(&mut context.context, "ifcont");
                 context.builder.build_cond_br(ifcond, &then_block, &else_block);
-//> if-builder-br
 
-//< if-builder-then-else
                 context.builder.position_at_end(&mut then_block);
                 let (then_value, _) = try!(then_expr.codegen(context, module_provider));
                 context.builder.build_br(&merge_block);
@@ -486,9 +385,7 @@ impl IRBuilder for parser::Expression {
                 let (else_value, _) = try!(else_expr.codegen(context, module_provider));
                 context.builder.build_br(&merge_block);
                 let else_end_block = context.builder.get_insert_block();
-//> if-builder-then-else
 
-//< if-builder-merge
                 context.builder.position_at_end(&mut merge_block);
                 // TODO: fix builder methods, so they generate the
                 // right instruction
@@ -499,39 +396,28 @@ impl IRBuilder for parser::Expression {
                 phi.add_incoming(vec![else_value].as_mut_slice(), vec![else_end_block].as_mut_slice());
 
                 Ok((phi.to_ref(), false))
-//> if-builder-merge
             },
-//> if-builder
 
 
-//< for-builder
             &parser::LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
                 let (start_value, _) = try!(start_expr.codegen(context, module_provider));
 
                 let preheader_block = context.builder.get_insert_block();
                 let mut function = preheader_block.get_parent();
 
-//> ch-4 ch-5 for-builder
-//< mutable-loop-alloca
                 let variable = create_entry_block_alloca(context, &function, var_name);
                 context.builder.build_store(start_value, variable);
-//> mutable-loop-alloca
 
-//< ch-4 ch-5 for-builder
                 let mut preloop_block = function.append_basic_block_in_context(&mut context.context, "preloop");
                 context.builder.build_br(&preloop_block);
                 context.builder.position_at_end(&mut preloop_block);
 
-//> ch-4 ch-5 for-builder
 /*
-//< ch-4 ch-5 for-builder
                 let mut variable = unsafe {
                     PHINodeRef::from_ref(context.builder.build_phi(context.ty.to_ref(), var_name))
                 };
                 variable.add_incoming(vec![start_value].as_mut_slice(), vec![preheader_block].as_mut_slice());
-//> ch-4 ch-5 for-builder
 */
-//< ch-4 ch-5 for-builder
                 let old_value = context.named_values.remove(var_name);
                 context.named_values.insert(var_name.clone(), variable.to_ref());
 
@@ -548,21 +434,15 @@ impl IRBuilder for parser::Expression {
                 try!(body_expr.codegen(context, module_provider));
 
                 let (step_value, _) = try!(step_expr.codegen(context, module_provider));
-//> ch-4 ch-5 for-builder
-//< mutable-loop-load
                 let cur_value = context.builder.build_load(variable, var_name);
                 let next_value = context.builder.build_fadd(cur_value, step_value, "nextvar");
                 context.builder.build_store(next_value, variable);
-//> mutable-loop-load
 
 /*
-//< ch-4 ch-5 for-builder
                 let next_value = context.builder.build_fadd(variable.to_ref(), step_value, "nextvar");
                 let loop_end_block = context.builder.get_insert_block();
                 variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_end_block].as_mut_slice());
-//> ch-4 ch-5 for-builder
 */
-//< ch-4 ch-5 for-builder
 
                 context.builder.build_br(&preloop_block);
 
@@ -575,12 +455,9 @@ impl IRBuilder for parser::Expression {
                 };
 
                 Ok((zero.to_ref(), false))
-            }
-//> ch-4 ch-5 for-builder
-/*j*/       ,
+            },
 
 
-//< mutable-var-builder
             &parser::VarExpr{ref vars, ref body_expr} => {
                 let mut old_bindings = Vec::new();
                 let function = context.builder.get_insert_block().get_parent();
@@ -608,9 +485,6 @@ impl IRBuilder for parser::Expression {
 
                 Ok((body_value, false))
             }
-//> mutable-var-builder
-//< ch-2 ch-3 ch-4 ch-5 ir-expression
         }
     }
 }
-//> ch-2 ch-3 ch-4 ch-5 ch-6 ir-expression
