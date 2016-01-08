@@ -2,99 +2,28 @@
 # -*- coding: utf-8 -*-
 
 """
-    Script to generate README with pieces of source files
+    Script to generate FILE with pieces of source files
 
-    :copyright: (c) 2015 Jauhien Piatlicki
+    :copyright: (c) 2015-2016 Jauhien Piatlicki
     :license: Apache-2.0 or MIT, see LICENSE-* for details
 """
 
 import argparse
-import re
 import sys
 
-def parse_source(source):
-    snippets = {}
-    active_snippets = set()
-    for line in source:
-        if line[0:3] == "//<":
-            active_snippets.update(line[3:].split())
-        elif line[0:3] == "//>":
-            active_snippets = active_snippets.difference(set(line[3:].split()))
-        else:
-            join = False
-            w = False
-            if line[0:5] == "/*j*/":
-                line = line[5:]
-                join = True
-            elif line[0:6] == "/*jw*/":
-                line = line[6:]
-                join = True
-                w = True
-            if join:
-                line = line.lstrip()
-                if w:
-                    line = " " + line
-
-            for snippet in active_snippets:
-                try:
-                    snippets[snippet].append(line)
-                except KeyError:
-                    snippets[snippet] = [line]
-
-                if join:
-                    try:
-                        snippets[snippet][-2] = snippets[snippet][-2].rstrip('\n')
-                    except IndexError:
-                        pass
-
-    return snippets
-
-def parse_source_file(fname):
-    source = []
-    with open(fname) as f:
-        source = f.readlines()
-    return parse_source(source)
-
-class Snippets(object):
-    __slots__ = ['snippets']
-
-    def __init__(self):
-        self.snippets = {}
-
-    def get(self, fname, name):
-        snippets = {}
-        try:
-            snippets = self.snippets[fname]
-        except KeyError:
-            snippets = parse_source_file(fname)
-            self.snippets[fname] = snippets
-        return snippets[name]
-
-def process_readme(readme):
-    snippets = Snippets()
-    result = []
-    regexp = re.compile('<<<(.*):(.*)>>>')
-    for line in readme:
-        match = regexp.match(line)
-        if match:
-            fname = match.group(1)
-            name = match.group(2)
-            result.extend(snippets.get(fname, name))
-        else:
-            result.append(line)
-    return result
+import snippets
 
 def main():
-    parser = argparse.ArgumentParser("Generate README with code snippets")
-    parser.add_argument('readme_in', help='README template')
-    parser.add_argument('readme_out', help='README to be generated')
+    parser = argparse.ArgumentParser("Generate FILE with code snippets")
+    parser.add_argument('file_in', help='FILE template')
+    parser.add_argument('file_out', help='FILE to be generated')
     args = parser.parse_args()
-    readme_in = []
-    with open(args.readme_in) as f:
-        readme_in = f.readlines()
-    readme = process_readme(readme_in)
-    with open(args.readme_out, 'w') as f:
-        f.write("".join(readme))
+    file_in = []
+    with open(args.file_in) as f:
+        file_in = f.readlines()
+    text = snippets.process(file_in)
+    with open(args.file_out, 'w') as f:
+        f.write("".join(text))
 
 if __name__ == "__main__":
     sys.exit(main())

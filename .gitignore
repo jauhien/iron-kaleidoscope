@@ -1,3 +1,4 @@
 target
 src/missing_llvm_bindings/llvmdeps.rs
 tmp
+__pycache__
