@@ -23,3 +23,4 @@ pub mod lexer;
 //> ch-0
 pub mod parser;
 //> ch-1 ch-2 ch-3
+pub mod filer;

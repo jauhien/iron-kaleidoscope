@@ -17,6 +17,9 @@ use jitter::JITter;
 use lexer::*;
 //> ch-0
 use parser::*;
+//> ch-1 ch-2 ch-3
+use filer;
+//< ch-1 ch-2 ch-3
 
 //< ch-0
 pub use self::Stage::{
@@ -74,6 +77,14 @@ pub fn main_loop(stage: Stage) {
 //< ch-2
     let mut builder_context = builder::Context::new();
 
+//> ch-2 ch-3
+    match filer::load_stdlib(&mut parser_settings, &mut builder_context, ir_container.get_module_provider()) {
+        Ok((value, runnable)) => if runnable && stage == Exec {
+            ir_container.run_function(value);
+        },
+        Err(err) => print!("Error occured during stdlib loading: {}\n", err)
+    };
+//< ch-2 ch-3
 //< ch-0 ch-1 parser-driver
 
     'main: loop {
