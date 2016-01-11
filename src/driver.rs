@@ -94,6 +94,24 @@ pub fn main_loop(stage: Stage) {
         stdin.read_line(&mut input).ok().expect("Failed to read line");
         if input.as_str() == ".quit\n" {
             break;
+//> ch-0 ch-1 ch-2 ch-3 parser-driver
+        } else if &input[0..5] == ".load" {
+            let mut path = input[6..].to_string();
+            match path.pop() {
+                Some(_) => (),
+                None => {
+                    print!("Error occured during loading: empty path\n");
+                    continue;
+                }
+            };
+            match filer::load_ks(path, &mut parser_settings, &mut builder_context, ir_container.get_module_provider()) {
+                Ok((value, runnable)) => if runnable && stage == Exec {
+                    ir_container.run_function(value);
+                },
+                Err(err) => print!("Error occured during loading: {}\n", err)
+            };
+            continue;
+//< ch-0 ch-1 ch-2 ch-3 parser-driver
         }
 
 //> ch-0
