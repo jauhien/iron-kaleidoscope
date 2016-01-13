@@ -8,6 +8,8 @@ use std::path::Path;
 
 use llvm_sys::prelude::LLVMValueRef;
 
+use iron_llvm::bitcode::write_bitcode_to_file;
+
 use builder;
 use builder::IRBuilder;
 use lexer;
@@ -84,4 +86,8 @@ pub fn load_stdlib(parser_settings: &mut parser::ParserSettings,
     let path = Path::new(&path).join("stdlib.ks");
 
     Ok(try!(load_ks(path, parser_settings, context, module_provider)))
+}
+
+pub fn dump_bitcode(path: &str, module_provider: &mut builder::ModuleProvider) -> Result<(), ()> {
+    write_bitcode_to_file(module_provider.get_module(), path)
 }

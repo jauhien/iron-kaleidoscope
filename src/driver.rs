@@ -111,6 +111,28 @@ pub fn main_loop(stage: Stage) {
                 Err(err) => print!("Error occured during loading: {}\n", err)
             };
             continue;
+        } else if &input[0..5] == ".dump" {
+            let mut path = input[6..].to_string();
+            match path.pop() {
+                Some(_) => (),
+                None => {
+                    print!("Error occured during dumping: empty path\n");
+                    continue;
+                }
+            };
+            match filer::dump_bitcode(&path, ir_container.get_module_provider()) {
+                Ok(_) => (),
+                Err(_) => print!("Error occured during dumping\n")
+            };
+            continue;
+        } else if input.as_str() == ".help\n" {
+            print!("Enter Kaleidoscope expressions or special commands.\n");
+            print!("Special commands are:\n");
+            print!(".quit -- quit\n");
+            print!(".load <path> -- load .ks file\n");
+            print!(".dump <path> -- dump bitcode of currently open module\n");
+            print!(".help -- show this help message\n");
+            continue;
 //< ch-0 ch-1 ch-2 ch-3 parser-driver
         }
 
