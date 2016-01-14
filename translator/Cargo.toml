@@ -1,0 +1,12 @@
+[package]
+
+name = "ikt"
+version = "0.0.1"
+authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
+
+[dependencies]
+docopt = "0.6"
+rustc-serialize = "0.3"
+
+[dependencies.iron_kaleidoscope]
+path = ".."
