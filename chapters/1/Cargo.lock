@@ -3,8 +3,8 @@ name = "iron_kaleidoscope"
 version = "0.0.1"
 dependencies = [
  "docopt 0.6.78 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex_macros 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.46 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex_macros 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -21,7 +21,7 @@ name = "docopt"
 version = "0.6.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.46 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "strsim 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "0.1.44"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "aho-corasick 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -56,10 +56,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "regex_macros"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "regex 0.1.44 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.46 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
