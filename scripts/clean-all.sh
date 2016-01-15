@@ -9,3 +9,7 @@ do
     cargo clean
     cd -
 done
+
+cd translator
+cargo clean
+cd -

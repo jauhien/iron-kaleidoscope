@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Call this script from the root of the repo
-for i in src/*.rs grammar.ebnf;
+for i in src/*.rs translator/src/*.rs grammar.ebnf;
 do
     echo
     echo "********************************************************************************"

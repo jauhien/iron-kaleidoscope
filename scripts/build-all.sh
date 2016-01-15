@@ -9,3 +9,7 @@ do
     cargo build
     cd -
 done
+
+cd translator
+cargo build
+cd -

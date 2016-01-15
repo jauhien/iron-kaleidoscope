@@ -9,3 +9,7 @@ do
     cargo update
     cd -
 done
+
+cd translator
+cargo update
+cd -
