@@ -1759,7 +1759,7 @@ add a series of passes. The first one is analysis the other four are
 transformation. These passes should reasonably cleanup and reorganize
 generated IR.
 
-We'll store function pass manager togerther with module in our `SimpleModuleProvider`
+We'll store function pass manager together with module in our `SimpleModuleProvider`
 (also we'll change the `ModuleProvider` trait):
 
 ```rust
