@@ -8,7 +8,7 @@ Everything works. State corresponds to the Chapter 7 of the original tutorial
 # [LLVM tutorial](http://llvm.org/docs/tutorial) in [the Rust language](http://www.rust-lang.org/).
 
 This tutorial is a work in progress and at the moment I'm working on getting it fully working with
-the latest Rust and on improvinvg the way it uses LLVM.
+the latest Rust and on improving the way it uses LLVM.
 
 ## Table of Contents
 
