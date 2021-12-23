@@ -1,0 +1,2 @@
+/opt/homebrew/opt/llvm/bin/llvm-ar qc libllvm-wrappers.a CMakeFiles/llvm-wrappers.dir/memory-manager-wrappers.cc.o CMakeFiles/llvm-wrappers.dir/support-wrappers.cc.o
+/opt/homebrew/opt/llvm/bin/llvm-ranlib libllvm-wrappers.a

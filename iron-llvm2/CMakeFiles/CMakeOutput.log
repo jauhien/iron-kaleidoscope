@@ -1,0 +1,306 @@
+The system is: Darwin - 21.1.0 - arm64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /opt/homebrew/opt/llvm/bin/clang 
+Build flags: ;-ffunction-sections;-fdata-sections;-fPIC;--target=arm64-apple-darwin
+Id flags:  
+
+The output was:
+0
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is Clang, found in "/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/3.21.4/CompilerIdC/a.out"
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: /opt/homebrew/opt/llvm/bin/clang++ 
+Build flags: -std=c++17
+Id flags:  
+
+The output was:
+0
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+
+The CXX compiler identification is Clang, found in "/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/3.21.4/CompilerIdCXX/a.out"
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_04fa9/fast && /usr/bin/make  -f CMakeFiles/cmTC_04fa9.dir/build.make CMakeFiles/cmTC_04fa9.dir/build
+Building C object CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o
+/opt/homebrew/opt/llvm/bin/clang   -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-darwin  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7   -v -Wl,-v -MD -MT CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCCompilerABI.c
+Homebrew clang version 13.0.0
+Target: arm64-apple-darwin
+Thread model: posix
+InstalledDir: /opt/homebrew/opt/llvm/bin
+clang-13: warning: -Wl,-v: 'linker' input unused [-Wunused-command-line-argument]
+ (in-process)
+ "/opt/homebrew/Cellar/llvm/13.0.0_2/bin/clang-13" -cc1 -triple arm64-apple-macosx10.7.0 -Wundef-prefix=TARGET_OS_ -Werror=undef-prefix -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -emit-obj -mrelax-all --mrelax-relocations -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -mframe-pointer=non-leaf -fno-rounding-math -munwind-tables -faligned-alloc-unavailable -target-sdk-version=12.1 -fcompatibility-qualified-id-block-type-checking -fvisibility-inlines-hidden-static-local-var -target-cpu apple-m1 -target-feature +v8.5a -target-feature +fp-armv8 -target-feature +neon -target-feature +crc -target-feature +crypto -target-feature +dotprod -target-feature +fp16fml -target-feature +ras -target-feature +lse -target-feature +rdm -target-feature +rcpc -target-feature +zcm -target-feature +zcz -target-feature +fullfp16 -target-feature +sha2 -target-feature +aes -target-abi darwinpcs -fallow-half-arguments-and-returns -debugger-tuning=lldb -target-linker-version 711 -v -ffunction-sections -fdata-sections -fcoverage-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -resource-dir /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0 -dependency-file CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem . -cxx-isystem /System/Library/Frameworks/Python.framework/Headers -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include -internal-isystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include -fdebug-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -ferror-limit 19 -stack-protector 1 -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fmax-type-align=16 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -x c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCCompilerABI.c
+clang -cc1 version 13.0.0 based upon LLVM 13.0.0 default target arm64-apple-darwin21.1.0
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"
+ignoring nonexistent directory "/System/Library/Frameworks/Python.framework/Headers"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/Library/Frameworks"
+#include "..." search starts here:
+#include <...> search starts here:
+ .
+ /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks (framework directory)
+End of search list.
+Linking C executable cmTC_04fa9
+/opt/homebrew/Cellar/cmake/3.21.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_04fa9.dir/link.txt --verbose=1
+/opt/homebrew/opt/llvm/bin/clang  -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-darwin  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7 -Wl,-search_paths_first -Wl,-headerpad_max_install_names -L/usr/local/opt/binutils/lib -v -Wl,-v CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -o cmTC_04fa9 
+Homebrew clang version 13.0.0
+Target: arm64-apple-darwin
+Thread model: posix
+InstalledDir: /opt/homebrew/opt/llvm/bin
+ "/usr/bin/ld" -demangle -lto_library /opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib -dynamic -arch arm64 -platform_version macos 11.0.0 12.1 -syslibroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk -o cmTC_04fa9 -L/usr/local/opt/binutils/lib -L. -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -search_paths_first -headerpad_max_install_names -v CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -lSystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a
+@(#)PROGRAM:ld  PROJECT:ld64-711
+BUILD 21:57:24 Nov 17 2021
+configured to support archs: armv6 armv7 armv7s arm64 arm64e arm64_32 i386 x86_64 x86_64h armv6m armv7k armv7m armv7em
+ld: warning: directory not found for option '-L/usr/local/opt/binutils/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+Library search paths:
+	.
+	/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib
+Framework search paths:
+	/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/
+
+
+
+Parsed C implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [.]
+    add: [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+    add: [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  end of search list found
+  skipping relative include dir [.]
+  collapse include dir [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include] ==> [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+  collapse include dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  implicit include dirs: [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld\.lld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/make -f Makefile cmTC_04fa9/fast && /usr/bin/make  -f CMakeFiles/cmTC_04fa9.dir/build.make CMakeFiles/cmTC_04fa9.dir/build]
+  ignore line: [Building C object CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/opt/homebrew/opt/llvm/bin/clang   -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-darwin  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7   -v -Wl -v -MD -MT CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [Homebrew clang version 13.0.0]
+  ignore line: [Target: arm64-apple-darwin]
+  ignore line: [Thread model: posix]
+  ignore line: [InstalledDir: /opt/homebrew/opt/llvm/bin]
+  ignore line: [clang-13: warning: -Wl -v: 'linker' input unused [-Wunused-command-line-argument]]
+  ignore line: [ (in-process)]
+  ignore line: [ "/opt/homebrew/Cellar/llvm/13.0.0_2/bin/clang-13" -cc1 -triple arm64-apple-macosx10.7.0 -Wundef-prefix=TARGET_OS_ -Werror=undef-prefix -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -emit-obj -mrelax-all --mrelax-relocations -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -mframe-pointer=non-leaf -fno-rounding-math -munwind-tables -faligned-alloc-unavailable -target-sdk-version=12.1 -fcompatibility-qualified-id-block-type-checking -fvisibility-inlines-hidden-static-local-var -target-cpu apple-m1 -target-feature +v8.5a -target-feature +fp-armv8 -target-feature +neon -target-feature +crc -target-feature +crypto -target-feature +dotprod -target-feature +fp16fml -target-feature +ras -target-feature +lse -target-feature +rdm -target-feature +rcpc -target-feature +zcm -target-feature +zcz -target-feature +fullfp16 -target-feature +sha2 -target-feature +aes -target-abi darwinpcs -fallow-half-arguments-and-returns -debugger-tuning=lldb -target-linker-version 711 -v -ffunction-sections -fdata-sections -fcoverage-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -resource-dir /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0 -dependency-file CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem . -cxx-isystem /System/Library/Frameworks/Python.framework/Headers -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include -internal-isystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include -fdebug-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -ferror-limit 19 -stack-protector 1 -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fmax-type-align=16 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -x c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [clang -cc1 version 13.0.0 based upon LLVM 13.0.0 default target arm64-apple-darwin21.1.0]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"]
+  ignore line: [ignoring nonexistent directory "/System/Library/Frameworks/Python.framework/Headers"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/Library/Frameworks"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ .]
+  ignore line: [ /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+  ignore line: [ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  ignore line: [ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks (framework directory)]
+  ignore line: [End of search list.]
+  ignore line: [Linking C executable cmTC_04fa9]
+  ignore line: [/opt/homebrew/Cellar/cmake/3.21.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_04fa9.dir/link.txt --verbose=1]
+  ignore line: [/opt/homebrew/opt/llvm/bin/clang  -ffunction-sections -fdata-sections -fPIC --target=arm64-apple-darwin  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7 -Wl -search_paths_first -Wl -headerpad_max_install_names -L/usr/local/opt/binutils/lib -v -Wl -v CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -o cmTC_04fa9 ]
+  ignore line: [Homebrew clang version 13.0.0]
+  ignore line: [Target: arm64-apple-darwin]
+  ignore line: [Thread model: posix]
+  ignore line: [InstalledDir: /opt/homebrew/opt/llvm/bin]
+  link line: [ "/usr/bin/ld" -demangle -lto_library /opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib -dynamic -arch arm64 -platform_version macos 11.0.0 12.1 -syslibroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk -o cmTC_04fa9 -L/usr/local/opt/binutils/lib -L. -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -search_paths_first -headerpad_max_install_names -v CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o -lSystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+    arg [/usr/bin/ld] ==> ignore
+    arg [-demangle] ==> ignore
+    arg [-lto_library] ==> ignore, skip following value
+    arg [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib] ==> skip value of -lto_library
+    arg [-dynamic] ==> ignore
+    arg [-arch] ==> ignore
+    arg [arm64] ==> ignore
+    arg [-platform_version] ==> ignore
+    arg [macos] ==> ignore
+    arg [11.0.0] ==> ignore
+    arg [12.1] ==> ignore
+    arg [-syslibroot] ==> ignore
+    arg [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_04fa9] ==> ignore
+    arg [-L/usr/local/opt/binutils/lib] ==> dir [/usr/local/opt/binutils/lib]
+    arg [-L.] ==> ignore
+    arg [-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+    arg [-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+    arg [-search_paths_first] ==> ignore
+    arg [-headerpad_max_install_names] ==> ignore
+    arg [-v] ==> ignore
+    arg [CMakeFiles/cmTC_04fa9.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lSystem] ==> lib [System]
+    arg [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a] ==> lib [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+  Library search paths: [;.;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  Framework search paths: [;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/]
+  remove lib [System]
+  remove lib [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+  collapse library dir [/usr/local/opt/binutils/lib] ==> [/usr/local/opt/binutils/lib]
+  collapse library dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+  collapse library dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+  collapse library dir [.] ==> [/Users/sundy/work/iron-kaleidoscope/iron-llvm/wrappers]
+  collapse library dir [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib] ==> [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  collapse framework dir [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/] ==> [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks]
+  implicit libs: []
+  implicit objs: []
+  implicit dirs: [/usr/local/opt/binutils/lib;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib;/Users/sundy/work/iron-kaleidoscope/iron-llvm/wrappers;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  implicit fwks: [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks]
+
+
+Detecting CXX compiler ABI info compiled with the following output:
+Change Dir: /Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_738d4/fast && /usr/bin/make  -f CMakeFiles/cmTC_738d4.dir/build.make CMakeFiles/cmTC_738d4.dir/build
+Building CXX object CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o
+/opt/homebrew/opt/llvm/bin/clang++   -std=c++17  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7   -v -Wl,-v -MD -MT CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCXXCompilerABI.cpp
+Homebrew clang version 13.0.0
+Target: arm64-apple-darwin21.1.0
+Thread model: posix
+InstalledDir: /opt/homebrew/opt/llvm/bin
+clang-13: warning: -Wl,-v: 'linker' input unused [-Wunused-command-line-argument]
+ (in-process)
+ "/opt/homebrew/Cellar/llvm/13.0.0_2/bin/clang-13" -cc1 -triple arm64-apple-macosx10.7.0 -Wundef-prefix=TARGET_OS_ -Werror=undef-prefix -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -emit-obj -mrelax-all --mrelax-relocations -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -mframe-pointer=non-leaf -fno-rounding-math -munwind-tables -faligned-alloc-unavailable -target-sdk-version=12.1 -fcompatibility-qualified-id-block-type-checking -fvisibility-inlines-hidden-static-local-var -target-cpu apple-m1 -target-feature +v8.5a -target-feature +fp-armv8 -target-feature +neon -target-feature +crc -target-feature +crypto -target-feature +dotprod -target-feature +fp16fml -target-feature +ras -target-feature +lse -target-feature +rdm -target-feature +rcpc -target-feature +zcm -target-feature +zcz -target-feature +fullfp16 -target-feature +sha2 -target-feature +aes -target-abi darwinpcs -fallow-half-arguments-and-returns -debugger-tuning=lldb -target-linker-version 711 -v -fcoverage-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -resource-dir /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0 -dependency-file CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem . -cxx-isystem /System/Library/Frameworks/Python.framework/Headers -stdlib=libc++ -internal-isystem /opt/homebrew/opt/llvm/bin/../include/c++/v1 -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include -internal-isystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include -std=c++17 -fdeprecated-macro -fdebug-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -ferror-limit 19 -stack-protector 1 -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fcxx-exceptions -fexceptions -fmax-type-align=16 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -x c++ /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCXXCompilerABI.cpp
+clang -cc1 version 13.0.0 based upon LLVM 13.0.0 default target arm64-apple-darwin21.1.0
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"
+ignoring nonexistent directory "/System/Library/Frameworks/Python.framework/Headers"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include"
+ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/Library/Frameworks"
+#include "..." search starts here:
+#include <...> search starts here:
+ /opt/homebrew/opt/llvm/bin/../include/c++/v1
+ /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include
+ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks (framework directory)
+End of search list.
+Linking CXX executable cmTC_738d4
+/opt/homebrew/Cellar/cmake/3.21.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_738d4.dir/link.txt --verbose=1
+/opt/homebrew/opt/llvm/bin/clang++ -std=c++17  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7 -Wl,-search_paths_first -Wl,-headerpad_max_install_names -L/usr/local/opt/binutils/lib -v -Wl,-v CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_738d4 
+Homebrew clang version 13.0.0
+Target: arm64-apple-darwin21.1.0
+Thread model: posix
+InstalledDir: /opt/homebrew/opt/llvm/bin
+ "/usr/bin/ld" -demangle -lto_library /opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib -dynamic -arch arm64 -platform_version macos 11.0.0 12.1 -syslibroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk -o cmTC_738d4 -L/usr/local/opt/binutils/lib -L. -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -search_paths_first -headerpad_max_install_names -v CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -lc++ -lSystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a
+@(#)PROGRAM:ld  PROJECT:ld64-711
+BUILD 21:57:24 Nov 17 2021
+configured to support archs: armv6 armv7 armv7s arm64 arm64e arm64_32 i386 x86_64 x86_64h armv6m armv7k armv7m armv7em
+ld: warning: directory not found for option '-L/usr/local/opt/binutils/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+ld: warning: directory not found for option '-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib'
+Library search paths:
+	.
+	/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib
+Framework search paths:
+	/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/
+
+
+
+Parsed CXX implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/opt/homebrew/opt/llvm/bin/../include/c++/v1]
+    add: [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+    add: [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  end of search list found
+  collapse include dir [/opt/homebrew/opt/llvm/bin/../include/c++/v1] ==> [/opt/homebrew/opt/llvm/include/c++/v1]
+  collapse include dir [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include] ==> [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+  collapse include dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  implicit include dirs: [/opt/homebrew/opt/llvm/include/c++/v1;/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+
+
+Parsed CXX implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld\.lld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/make -f Makefile cmTC_738d4/fast && /usr/bin/make  -f CMakeFiles/cmTC_738d4.dir/build.make CMakeFiles/cmTC_738d4.dir/build]
+  ignore line: [Building CXX object CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o]
+  ignore line: [/opt/homebrew/opt/llvm/bin/clang++   -std=c++17  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7   -v -Wl -v -MD -MT CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -c /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [Homebrew clang version 13.0.0]
+  ignore line: [Target: arm64-apple-darwin21.1.0]
+  ignore line: [Thread model: posix]
+  ignore line: [InstalledDir: /opt/homebrew/opt/llvm/bin]
+  ignore line: [clang-13: warning: -Wl -v: 'linker' input unused [-Wunused-command-line-argument]]
+  ignore line: [ (in-process)]
+  ignore line: [ "/opt/homebrew/Cellar/llvm/13.0.0_2/bin/clang-13" -cc1 -triple arm64-apple-macosx10.7.0 -Wundef-prefix=TARGET_OS_ -Werror=undef-prefix -Wdeprecated-objc-isa-usage -Werror=deprecated-objc-isa-usage -emit-obj -mrelax-all --mrelax-relocations -disable-free -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -mframe-pointer=non-leaf -fno-rounding-math -munwind-tables -faligned-alloc-unavailable -target-sdk-version=12.1 -fcompatibility-qualified-id-block-type-checking -fvisibility-inlines-hidden-static-local-var -target-cpu apple-m1 -target-feature +v8.5a -target-feature +fp-armv8 -target-feature +neon -target-feature +crc -target-feature +crypto -target-feature +dotprod -target-feature +fp16fml -target-feature +ras -target-feature +lse -target-feature +rdm -target-feature +rcpc -target-feature +zcm -target-feature +zcz -target-feature +fullfp16 -target-feature +sha2 -target-feature +aes -target-abi darwinpcs -fallow-half-arguments-and-returns -debugger-tuning=lldb -target-linker-version 711 -v -fcoverage-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -resource-dir /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0 -dependency-file CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/ -c-isystem . -cxx-isystem /System/Library/Frameworks/Python.framework/Headers -stdlib=libc++ -internal-isystem /opt/homebrew/opt/llvm/bin/../include/c++/v1 -internal-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include -internal-isystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include -internal-externc-isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include -std=c++17 -fdeprecated-macro -fdebug-compilation-dir=/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/CMakeTmp -ferror-limit 19 -stack-protector 1 -fblocks -fencode-extended-block-signature -fregister-global-dtors-with-atexit -fgnuc-version=4.2.1 -fcxx-exceptions -fexceptions -fmax-type-align=16 -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -x c++ /opt/homebrew/Cellar/cmake/3.21.4/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [clang -cc1 version 13.0.0 based upon LLVM 13.0.0 default target arm64-apple-darwin21.1.0]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/include/"]
+  ignore line: [ignoring nonexistent directory "/System/Library/Frameworks/Python.framework/Headers"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/local/include"]
+  ignore line: [ignoring nonexistent directory "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/Library/Frameworks"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /opt/homebrew/opt/llvm/bin/../include/c++/v1]
+  ignore line: [ /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/include]
+  ignore line: [ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/usr/include]
+  ignore line: [ /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk/System/Library/Frameworks (framework directory)]
+  ignore line: [End of search list.]
+  ignore line: [Linking CXX executable cmTC_738d4]
+  ignore line: [/opt/homebrew/Cellar/cmake/3.21.4/bin/cmake -E cmake_link_script CMakeFiles/cmTC_738d4.dir/link.txt --verbose=1]
+  ignore line: [/opt/homebrew/opt/llvm/bin/clang++ -std=c++17  -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -mmacosx-version-min=10.7 -Wl -search_paths_first -Wl -headerpad_max_install_names -L/usr/local/opt/binutils/lib -v -Wl -v CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_738d4 ]
+  ignore line: [Homebrew clang version 13.0.0]
+  ignore line: [Target: arm64-apple-darwin21.1.0]
+  ignore line: [Thread model: posix]
+  ignore line: [InstalledDir: /opt/homebrew/opt/llvm/bin]
+  link line: [ "/usr/bin/ld" -demangle -lto_library /opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib -dynamic -arch arm64 -platform_version macos 11.0.0 12.1 -syslibroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk -o cmTC_738d4 -L/usr/local/opt/binutils/lib -L. -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib -search_paths_first -headerpad_max_install_names -v CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o -lc++ -lSystem /opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+    arg [/usr/bin/ld] ==> ignore
+    arg [-demangle] ==> ignore
+    arg [-lto_library] ==> ignore, skip following value
+    arg [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/libLTO.dylib] ==> skip value of -lto_library
+    arg [-dynamic] ==> ignore
+    arg [-arch] ==> ignore
+    arg [arm64] ==> ignore
+    arg [-platform_version] ==> ignore
+    arg [macos] ==> ignore
+    arg [11.0.0] ==> ignore
+    arg [12.1] ==> ignore
+    arg [-syslibroot] ==> ignore
+    arg [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_738d4] ==> ignore
+    arg [-L/usr/local/opt/binutils/lib] ==> dir [/usr/local/opt/binutils/lib]
+    arg [-L.] ==> ignore
+    arg [-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+    arg [-L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+    arg [-search_paths_first] ==> ignore
+    arg [-headerpad_max_install_names] ==> ignore
+    arg [-v] ==> ignore
+    arg [CMakeFiles/cmTC_738d4.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+    arg [-lc++] ==> lib [c++]
+    arg [-lSystem] ==> lib [System]
+    arg [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a] ==> lib [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+  Library search paths: [;.;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  Framework search paths: [;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/]
+  remove lib [System]
+  remove lib [/opt/homebrew/Cellar/llvm/13.0.0_2/lib/clang/13.0.0/lib/darwin/libclang_rt.osx.a]
+  collapse library dir [/usr/local/opt/binutils/lib] ==> [/usr/local/opt/binutils/lib]
+  collapse library dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+  collapse library dir [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib] ==> [/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib]
+  collapse library dir [.] ==> [/Users/sundy/work/iron-kaleidoscope/iron-llvm/wrappers]
+  collapse library dir [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib] ==> [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  collapse framework dir [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks/] ==> [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks]
+  implicit libs: [c++]
+  implicit objs: []
+  implicit dirs: [/usr/local/opt/binutils/lib;/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/usr/lib;/Users/sundy/work/iron-kaleidoscope/iron-llvm/wrappers;/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/usr/lib]
+  implicit fwks: [/Library/Developer/CommandLineTools/SDKs/MacOSX12.sdk/System/Library/Frameworks]
+
+
