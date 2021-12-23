@@ -1,5 +1,10 @@
 # Status
 
+This is a fork version of [jauhien/iron-kaleidoscope](https://github.com/jauhien/iron-kaleidoscope)
+
+We made some changes to the code and made it work in newest rustc version.
+
+
 Everything works. State corresponds to the Chapter 7 of the original tutorial
 (i.e. mutable variables implemented).
 
