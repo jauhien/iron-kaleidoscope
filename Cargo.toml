@@ -6,10 +6,11 @@ authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
 
 [dependencies]
 docopt = "0.6"
-llvm-sys = "*"
-regex = "*"
-regex_macros = "*"
+llvm-sys = "0.2.1"
+regex = "1.5.4"
 rustc-serialize = "0.3"
 
+
+
 [dependencies.iron_llvm]
-git = "https://github.com/jauhien/iron-llvm.git"
+path = "./iron-llvm"

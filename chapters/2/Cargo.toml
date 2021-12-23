@@ -7,9 +7,8 @@ authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
 [dependencies]
 docopt = "0.6"
 regex = "*"
-regex_macros = "*"
 rustc-serialize = "0.3"
-llvm-sys = "*"
+llvm-sys = "0.2.1"
 
 [dependencies.iron_llvm]
-git = "https://github.com/jauhien/iron-llvm.git"
+path = "../../iron-llvm"
