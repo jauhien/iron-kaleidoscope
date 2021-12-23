@@ -5,23 +5,25 @@ use std::rc::Rc;
 
 use llvm_sys::prelude::LLVMValueRef;
 
-use iron_llvm::{LLVMRef, LLVMRefCtor};
 use iron_llvm::core;
 use iron_llvm::core::types::{FunctionType, FunctionTypeRef, RealTypeCtor, RealTypeRef};
 use iron_llvm::core::value::{Function, FunctionCtor, FunctionRef, Value};
-use iron_llvm::execution_engine::{BindingSectionMemoryManagerBuilder, ExecutionEngine, MCJITBuilder};
 use iron_llvm::execution_engine::execution_engine::FrozenModule;
+use iron_llvm::execution_engine::{
+    BindingSectionMemoryManagerBuilder, ExecutionEngine, MCJITBuilder,
+};
 use iron_llvm::support::add_symbol;
+use iron_llvm::{LLVMRef, LLVMRefCtor};
 
 use builder;
 
 //< jit-builtin
-pub extern fn printd(x: f64) -> f64 {
+pub extern "C" fn printd(x: f64) -> f64 {
     println!("> {} <", x);
     x
 }
 
-pub extern fn putchard(x: f64) -> f64 {
+pub extern "C" fn putchard(x: f64) -> f64 {
     print!("{}", x as u8 as char);
     x
 }
@@ -35,9 +37,9 @@ pub fn init() {
 //> jit-builtin
 
 //< jit-jitter
-pub trait JITter : builder::ModuleProvider {
+pub trait JITter: builder::ModuleProvider {
     // TODO: fix https://github.com/rust-lang/rust/issues/5665
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider;
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider;
 
     fn run_function(&mut self, f: LLVMValueRef) -> f64;
 }
@@ -46,7 +48,7 @@ pub trait JITter : builder::ModuleProvider {
 //< jit-mc
 struct ModulesContainer {
     execution_engines: Vec<ExecutionEngine>,
-    modules: Vec<FrozenModule>
+    modules: Vec<FrozenModule>,
 }
 //> jit-mc
 
@@ -71,12 +73,12 @@ pub struct MCJITter {
     current_module: core::Module,
     function_passmanager: core::FunctionPassManager,
 
-    container: Rc<RefCell<ModulesContainer>>
+    container: Rc<RefCell<ModulesContainer>>,
 }
 //> jit-mcjitter
 
 impl MCJITter {
-//< jit-mcjitter-ctor
+    //< jit-mcjitter-ctor
     pub fn new(name: &str) -> MCJITter {
         let (current_module, function_passmanager) = builder::new_module(name);
 
@@ -87,21 +89,21 @@ impl MCJITter {
 
             container: Rc::new(RefCell::new(ModulesContainer {
                 execution_engines: vec![],
-                modules: vec![]
-            }))
+                modules: vec![],
+            })),
         }
     }
-//> jit-mcjitter-ctor
+    //> jit-mcjitter-ctor
 
-//< jit-mcjitter-close-module
-    fn close_current_module(& mut self) {
-//< jit-mcjitter-new-module
+    //< jit-mcjitter-close-module
+    fn close_current_module(&mut self) {
+        //< jit-mcjitter-new-module
         let (new_module, new_function_passmanager) = builder::new_module(&self.module_name);
         self.function_passmanager = new_function_passmanager;
         let current_module = std::mem::replace(&mut self.current_module, new_module);
-//> jit-mcjitter-new-module
+        //> jit-mcjitter-new-module
 
-//< jit-mcjitter-mm
+        //< jit-mcjitter-mm
         let container = self.container.clone();
         let memory_manager = BindingSectionMemoryManagerBuilder::new()
             .set_get_symbol_address(move |mut parent_mm, name| {
@@ -113,27 +115,31 @@ impl MCJITter {
                 container.borrow().get_function_address(name)
             })
             .create();
-//> jit-mcjitter-mm
+        //> jit-mcjitter-mm
 
-//< jit-mcjitter-ee
+        //< jit-mcjitter-ee
         let (execution_engine, module) = match MCJITBuilder::new()
             .set_mcjit_memory_manager(Box::new(memory_manager))
-            .create(current_module) {
-                Ok((ee, module)) => (ee, module),
-                Err(msg) => panic!(msg)
-            };
-//> jit-mcjitter-ee
+            .create(current_module)
+        {
+            Ok((ee, module)) => (ee, module),
+            Err(msg) => panic!("{}", msg),
+        };
+        //> jit-mcjitter-ee
 
-//< jit-mcjitter-container-update
-        self.container.borrow_mut().execution_engines.push(execution_engine);
+        //< jit-mcjitter-container-update
+        self.container
+            .borrow_mut()
+            .execution_engines
+            .push(execution_engine);
         self.container.borrow_mut().modules.push(module);
-//> jit-mcjitter-container-update
+        //> jit-mcjitter-container-update
     }
-//> jit-mcjitter-close-module
+    //> jit-mcjitter-close-module
 }
 
 impl builder::ModuleProvider for MCJITter {
-//< jit-mcjitter-mp-simple
+    //< jit-mcjitter-mp-simple
     fn dump(&self) {
         for module in self.container.borrow().modules.iter() {
             module.get().dump()
@@ -144,16 +150,14 @@ impl builder::ModuleProvider for MCJITter {
     fn get_module(&mut self) -> &mut core::Module {
         &mut self.current_module
     }
-//> jit-mcjitter-mp-simple
+    //> jit-mcjitter-mp-simple
 
-//< jit-mcjitter-mp-gf
+    //< jit-mcjitter-mp-gf
     fn get_function(&mut self, name: &str) -> Option<(FunctionRef, bool)> {
         for module in &self.container.borrow().modules {
             let funct = match module.get().get_function_by_name(name) {
-                Some(f) => {
-                    f
-                },
-                None => continue
+                Some(f) => f,
+                None => continue,
             };
 
             let proto = match self.current_module.get_function_by_name(name) {
@@ -162,7 +166,7 @@ impl builder::ModuleProvider for MCJITter {
                         panic!("redefinition of function across modules")
                     }
                     f
-                },
+                }
                 None => {
                     // TODO: fix iron-llvm get_type
                     let fty = unsafe { FunctionTypeRef::from_ref(funct.get_type().to_ref()) };
@@ -172,36 +176,40 @@ impl builder::ModuleProvider for MCJITter {
             };
 
             if funct.count_basic_blocks() > 0 {
-                return Some((proto, true))
+                return Some((proto, true));
             }
         }
 
         match self.current_module.get_function_by_name(name) {
             Some(f) => Some((f, f.count_basic_blocks() > 0)),
-            None => None
+            None => None,
         }
     }
-//> jit-mcjitter-mp-gf
+    //> jit-mcjitter-mp-gf
 
-//< jit-mcjitter-mp-simple
+    //< jit-mcjitter-mp-simple
     fn get_pass_manager(&mut self) -> &mut core::FunctionPassManager {
         &mut self.function_passmanager
     }
-//> jit-mcjitter-mp-simple
+    //> jit-mcjitter-mp-simple
 }
 
 //< jit-mcjitter-jitter
 impl JITter for MCJITter {
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider {
         self
     }
 
     fn run_function(&mut self, f: LLVMValueRef) -> f64 {
         self.close_current_module();
-        let f = unsafe {FunctionRef::from_ref(f)};
+        let f = unsafe { FunctionRef::from_ref(f) };
         let mut args = vec![];
-        let res = self.container.borrow()
-            .execution_engines.last().expect("MCJITter went crazy")
+        let res = self
+            .container
+            .borrow()
+            .execution_engines
+            .last()
+            .expect("MCJITter went crazy")
             .run_function(&f, args.as_mut_slice());
         let ty = RealTypeRef::get_double();
         res.to_float(&ty)
@@ -211,7 +219,7 @@ impl JITter for MCJITter {
 
 //< jit-smp
 impl JITter for builder::SimpleModuleProvider {
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider {
         self
     }
 

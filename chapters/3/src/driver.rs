@@ -11,19 +11,14 @@ use jitter::JITter;
 use lexer::*;
 use parser::*;
 
-pub use self::Stage::{
-    Exec,
-    IR,
-    AST,
-    Tokens
-};
+pub use self::Stage::{Exec, Tokens, AST, IR};
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Stage {
     Exec,
     IR,
     AST,
-    Tokens
+    Tokens,
 }
 
 pub fn main_loop(stage: Stage) {
@@ -31,27 +26,25 @@ pub fn main_loop(stage: Stage) {
     let mut stdout = io::stdout();
     let mut input = String::new();
     let mut parser_settings = default_parser_settings();
-    let mut ir_container : Box<JITter> = if stage == Exec {
+    let mut ir_container: Box<dyn JITter> = if stage == Exec {
         target::initilalize_native_target();
         target::initilalize_native_asm_printer();
         jitter::init();
-        Box::new(
-            jitter::MCJITter::new("main")
-                )
+        Box::new(jitter::MCJITter::new("main"))
     } else {
-        Box::new(
-            builder::SimpleModuleProvider::new("main")
-                )
+        Box::new(builder::SimpleModuleProvider::new("main"))
     };
 
     let mut builder_context = builder::Context::new();
-
 
     'main: loop {
         print!("> ");
         stdout.flush().unwrap();
         input.clear();
-        stdin.read_line(&mut input).ok().expect("Failed to read line");
+        stdin
+            .read_line(&mut input)
+            .ok()
+            .expect("Failed to read line");
         if input.as_str() == ".quit\n" {
             break;
         }
@@ -64,7 +57,7 @@ pub fn main_loop(stage: Stage) {
             let tokens = tokenize(input.as_str());
             if stage == Tokens {
                 println!("{:?}", tokens);
-                continue 'main
+                continue 'main;
             }
             prev.extend(tokens.into_iter());
 
@@ -74,36 +67,39 @@ pub fn main_loop(stage: Stage) {
                     ast.extend(parsed_ast.into_iter());
                     if rest.is_empty() {
                         // we have parsed a full expression
-                        break
+                        break;
                     } else {
                         prev = rest;
                     }
-                },
+                }
                 Err(message) => {
                     println!("Error occured: {}", message);
-                    continue 'main
+                    continue 'main;
                 }
             }
             print!(". ");
             stdout.flush().unwrap();
             input.clear();
-            stdin.read_line(&mut input).ok().expect("Failed to read line");
+            stdin
+                .read_line(&mut input)
+                .ok()
+                .expect("Failed to read line");
         }
 
         if stage == AST {
             println!("{:?}", ast);
-            continue
+            continue;
         }
 
-        match ast.codegen(&mut builder_context,
-                          ir_container.get_module_provider()) {
-            Ok((value, runnable)) =>
+        match ast.codegen(&mut builder_context, ir_container.get_module_provider()) {
+            Ok((value, runnable)) => {
                 if runnable && stage == Exec {
                     println!("=> {}", ir_container.run_function(value));
                 } else {
                     value.dump();
-                },
-            Err(message) => println!("Error occured: {}", message)
+                }
+            }
+            Err(message) => println!("Error occured: {}", message),
         }
     }
 

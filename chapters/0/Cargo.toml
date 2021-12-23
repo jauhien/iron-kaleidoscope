@@ -6,6 +6,5 @@ authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
 
 [dependencies]
 docopt = "0.6"
-regex = "*"
-regex_macros = "*"
+regex = "1.0.0"
 rustc-serialize = "0.3"

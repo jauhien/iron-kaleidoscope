@@ -18,30 +18,23 @@ use parser;
 #[derive(Debug)]
 pub enum FilerError {
     Io(io::Error),
-    Build(String)
+    Build(String),
 }
 
 impl fmt::Display for FilerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             FilerError::Io(ref err) => write!(f, "IO error: {}", err),
-            FilerError::Build(ref err) => write!(f, "Build error: {}", err)
+            FilerError::Build(ref err) => write!(f, "Build error: {}", err),
         }
     }
 }
 
 impl error::Error for FilerError {
-    fn description(&self) -> &str {
-         match *self {
-            FilerError::Io(ref err) => err.description(),
-            FilerError::Build(ref err) => err
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             FilerError::Io(ref err) => Some(err),
-            FilerError::Build(_) => Some(self)
+            FilerError::Build(_) => Some(self),
         }
     }
 }
@@ -58,36 +51,46 @@ impl From<String> for FilerError {
     }
 }
 
-pub fn load_ks<P: AsRef<Path>>(path: P,
-                               parser_settings: &mut parser::ParserSettings,
-                               context: &mut builder::Context,
-                               module_provider: &mut builder::ModuleProvider) -> Result<(LLVMValueRef, bool), FilerError> {
-    let mut f = try!(File::open(path));
+pub fn load_ks<P: AsRef<Path>>(
+    path: P,
+    parser_settings: &mut parser::ParserSettings,
+    context: &mut builder::Context,
+    module_provider: &mut dyn builder::ModuleProvider,
+) -> Result<(LLVMValueRef, bool), FilerError> {
+    let mut f = File::open(path)?;
     let mut buf = String::new();
-    try!(f.read_to_string(&mut buf));
+    f.read_to_string(&mut buf)?;
 
     let tokens = lexer::tokenize(&buf);
 
-    let (ast, rest) = try!(parser::parse(tokens.as_slice(), vec![].as_slice(), parser_settings));
+    let (ast, rest) = parser::parse(tokens.as_slice(), vec![].as_slice(), parser_settings)?;
     if !rest.is_empty() {
-        return Err(FilerError::Build(format!("Not complete expression: {:?}", rest)));
+        return Err(FilerError::Build(format!(
+            "Not complete expression: {:?}",
+            rest
+        )));
     }
 
-    Ok(try!(ast.codegen(context, module_provider)))
+    Ok(ast.codegen(context, module_provider)?)
 }
 
-pub fn load_stdlib(parser_settings: &mut parser::ParserSettings,
-                   context: &mut builder::Context,
-                   module_provider: &mut builder::ModuleProvider) -> Result<(LLVMValueRef, bool), FilerError> {
+pub fn load_stdlib(
+    parser_settings: &mut parser::ParserSettings,
+    context: &mut builder::Context,
+    module_provider: &mut dyn builder::ModuleProvider,
+) -> Result<(LLVMValueRef, bool), FilerError> {
     let path = match env::var("KALEIDOSCOPE_PATH") {
         Ok(path) => path,
-        Err(_) => "stdlib".to_string()
+        Err(_) => "stdlib".to_string(),
     };
     let path = Path::new(&path).join("stdlib.ks");
 
-    Ok(try!(load_ks(path, parser_settings, context, module_provider)))
+    Ok(load_ks(path, parser_settings, context, module_provider)?)
 }
 
-pub fn dump_bitcode(path: &str, module_provider: &mut builder::ModuleProvider) -> Result<(), ()> {
+pub fn dump_bitcode(
+    path: &str,
+    module_provider: &mut dyn builder::ModuleProvider,
+) -> Result<(), ()> {
     write_bitcode_to_file(module_provider.get_module(), path)
 }

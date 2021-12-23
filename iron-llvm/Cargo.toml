@@ -1,0 +1,13 @@
+[package]
+
+name = "iron_llvm"
+version = "0.0.1"
+authors = ["Jauhien Piatlicki <jauhien@gentoo.org>"]
+build = "build.rs"
+
+[dependencies]
+libc = "0.1.10"
+llvm-sys = "0.2.1"
+
+[build-dependencies]
+cmake = "0.1.12"

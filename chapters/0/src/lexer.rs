@@ -1,14 +1,12 @@
 pub use self::Token::{
-    Def,
-    Extern,
-    Delimiter,
-    OpeningParenthesis,
-    ClosingParenthesis,
-    Comma,
-    Ident,
-    Number,
-    Operator
+    ClosingParenthesis, Comma, Def, Delimiter, Extern, Ident, Number, OpeningParenthesis, Operator,
 };
+
+macro_rules! regex {
+    ($re:expr) => {
+        regex::Regex::new($re).unwrap()
+    };
+}
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
@@ -20,7 +18,7 @@ pub enum Token {
     Comma,
     Ident(String),
     Number(f64),
-    Operator(String)
+    Operator(String),
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
@@ -40,19 +38,20 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         r"(?P<oppar>\()|",
         r"(?P<clpar>\))|",
         r"(?P<comma>,)|",
-        r"(?P<operator>\S)"));
+        r"(?P<operator>\S)"
+    ));
 
-    for cap in token_re.captures_iter(preprocessed.as_str()) {
+    for cap in token_re.captures_iter(preprocessed.as_ref()) {
         let token = if cap.name("ident").is_some() {
-            match cap.name("ident").unwrap() {
+            match cap.name("ident").unwrap().as_str() {
                 "def" => Def,
                 "extern" => Extern,
-                ident => Ident(ident.to_string())
+                ident => Ident(ident.to_string()),
             }
         } else if cap.name("number").is_some() {
-            match cap.name("number").unwrap().parse() {
+            match cap.name("number").unwrap().as_str().parse() {
                 Ok(number) => Number(number),
-                Err(_) => panic!("Lexer failed trying to parse number")
+                Err(_) => panic!("Lexer failed trying to parse number"),
             }
         } else if cap.name("delimiter").is_some() {
             Delimiter
@@ -63,7 +62,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         } else if cap.name("comma").is_some() {
             Comma
         } else {
-            Operator(cap.name("operator").unwrap().to_string())
+            Operator(cap.name("operator").unwrap().as_str().to_string())
         };
 
         result.push(token)

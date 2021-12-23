@@ -2,3 +2,4 @@ target
 src/missing_llvm_bindings/llvmdeps.rs
 tmp
 __pycache__
+build

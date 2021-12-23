@@ -1,13 +1,3 @@
-//< ch-1 ch-2 ch-3
-#![feature(box_syntax)]
-//< ch-0
-#![feature(convert)]
-#![feature(plugin)]
-#![plugin(regex_macros)]
-
-extern crate regex;
-//> ch-0 ch-1
-
 //< ir-import
 extern crate iron_llvm;
 extern crate llvm_sys;

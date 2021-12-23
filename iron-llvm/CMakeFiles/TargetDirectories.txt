@@ -1,0 +1,10 @@
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/install/local.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/list_install_components.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/install/strip.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/install.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/llvm-wrappers.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/edit_cache.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/acc_gen.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/omp_gen.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/rebuild_cache.dir
+/Users/sundy/work/iron-kaleidoscope/iron-llvm/CMakeFiles/intrinsics_gen.dir

@@ -1,11 +1,9 @@
-extern crate rustc_serialize;
 extern crate docopt;
+extern crate rustc_serialize;
 
 extern crate iron_kaleidoscope;
 
-use iron_kaleidoscope::driver::{main_loop,
-                                Tokens
-};
+use iron_kaleidoscope::driver::{main_loop, Tokens};
 
 use docopt::Docopt;
 
@@ -22,7 +20,7 @@ Options:
 struct Args {
     flag_l: bool,
     flag_p: bool,
-    flag_i: bool
+    flag_i: bool,
 }
 
 fn main() {

@@ -1,5 +1,10 @@
 # Status
 
+This is a fork version of [jauhien/iron-kaleidoscope](https://github.com/jauhien/iron-kaleidoscope)
+
+We made some changes to the code and made it work in newest rustc version.
+
+
 Everything works. State corresponds to the Chapter 7 of the original tutorial
 (i.e. mutable variables implemented).
 
@@ -924,7 +929,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
         }
 
         // merge LHS and RHS
-        result = BinaryExpr(operator, box result, box rhs);
+        result = BinaryExpr(operator, Box::new(result), Box::new(rhs));
     }
 
     Good(result, parsed_tokens)
@@ -1091,10 +1096,10 @@ Using it is as simple as adding
 
 ```
 [dependencies]
-llvm-sys = "*"
+llvm-sys = "0.2.1"
 
 [dependencies.iron_llvm]
-git = "https://github.com/jauhien/iron-llvm.git"
+path = "../../iron-llvm"
 ```
 
 to [Cargo.toml file](https://github.com/jauhien/iron-kaleidoscope/blob/master/Cargo.toml) and
@@ -1226,7 +1231,7 @@ fn error(message : &str) -> IRBuildingResult {
 }
 
 pub trait IRBuilder {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult;
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult;
 }
 ```
 
@@ -1241,7 +1246,7 @@ Let's implement `IRBuilder` trait for top level data structures. For
 
 ```rust
 impl IRBuilder for parser::ParsingResult {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         match self {
             &Ok((ref ast, _)) => ast.codegen(context, module_provider),
             &Err(ref message) => Err(message.clone())
@@ -1250,10 +1255,10 @@ impl IRBuilder for parser::ParsingResult {
 }
 
 impl IRBuilder for Vec<parser::ASTNode> {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         let mut result = error("empty AST");
         for node in self.iter() {
-            result = Ok(try!(node.codegen(context, module_provider)));
+            result = Ok(node.codegen(context, module_provider)?)
         }
 
         result
@@ -1261,7 +1266,7 @@ impl IRBuilder for Vec<parser::ASTNode> {
 }
 
 impl IRBuilder for parser::ASTNode {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         match self {
             &parser::ExternNode(ref prototype) => prototype.codegen(context, module_provider),
             &parser::FunctionNode(ref function) => function.codegen(context, module_provider)
@@ -1281,7 +1286,7 @@ Code generation for prototypes looks like this:
 
 ```rust
 impl IRBuilder for parser::Prototype {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         // check if declaration with this name was already done
         let function = match module_provider.get_function(&self.name) {
             Some((prev_definition, redefinition)) => {
@@ -1331,12 +1336,12 @@ Function code generation looks like this:
 
 ```rust
 impl IRBuilder for parser::Function {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         // we have no global variables, so we can clear all the
         // previously defined named values as they come from other functions
         context.named_values.clear();
 
-        let (function, _) = try!(self.prototype.codegen(context, module_provider));
+        let (function, _) =self.prototype.codegen(context, module_provider)?;
         let mut function = unsafe {FunctionRef::from_ref(function)};
 
         // basic block that will contain generated instructions
@@ -1404,7 +1409,7 @@ comments will follow:
 
 ```rust
 impl IRBuilder for parser::Expression {
-    fn codegen(&self, context: &mut Context, module_provider: &mut ModuleProvider) -> IRBuildingResult {
+    fn codegen(&self, context: &mut Context, module_provider: &mut dyn ModuleProvider) -> IRBuildingResult {
         match self {
 
 
@@ -1424,8 +1429,8 @@ impl IRBuilder for parser::Expression {
 
 
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
-                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
+                let (lhs_value, _) =lhs.codegen(context, module_provider)?;
+                let (rhs_value, _) =rhs.codegen(context, module_provider)?;
 
                 match name.as_str() {
                     "+" => Ok((context.builder.build_fadd(lhs_value,
@@ -1469,7 +1474,7 @@ impl IRBuilder for parser::Expression {
 
                 let mut args_value = Vec::new();
                 for arg in args.iter() {
-                    let (arg_value, _) = try!(arg.codegen(context, module_provider));
+                    let (arg_value, _) =arg.codegen(context, module_provider)?;
                     args_value.push(arg_value);
                 }
 
@@ -1528,8 +1533,8 @@ additional type conversion as mentioned.
 
 ```rust
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
-                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
+                let (lhs_value, _) =lhs.codegen(context, module_provider)?;
+                let (rhs_value, _) =rhs.codegen(context, module_provider)?;
 
                 match name.as_str() {
                     "+" => Ok((context.builder.build_fadd(lhs_value,
@@ -1580,7 +1585,7 @@ vector.
 
                 let mut args_value = Vec::new();
                 for arg in args.iter() {
-                    let (arg_value, _) = try!(arg.codegen(context, module_provider));
+                    let (arg_value, _) =arg.codegen(context, module_provider)?;
                     args_value.push(arg_value);
                 }
 
@@ -1872,7 +1877,7 @@ the modules that we will have):
 ```rust
 pub trait JITter : builder::ModuleProvider {
     // TODO: fix https://github.com/rust-lang/rust/issues/5665
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider;
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider;
 
     fn run_function(&mut self, f: LLVMValueRef) -> f64;
 }
@@ -1995,7 +2000,7 @@ The method for closing current module is where the magic of execution engine cre
             .set_mcjit_memory_manager(Box::new(memory_manager))
             .create(current_module) {
                 Ok((ee, module)) => (ee, module),
-                Err(msg) => panic!(msg)
+                Err(msg) => panic!("{}", msg)
             };
 
         self.container.borrow_mut().execution_engines.push(execution_engine);
@@ -2037,7 +2042,7 @@ Now we can create the execution engine for the current module:
             .set_mcjit_memory_manager(Box::new(memory_manager))
             .create(current_module) {
                 Ok((ee, module)) => (ee, module),
-                Err(msg) => panic!(msg)
+                Err(msg) => panic!("{}", msg)
             };
 ```
 
@@ -2146,7 +2151,7 @@ symbol resolution.
 
 ```rust
 impl JITter for MCJITter {
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider {
         self
     }
 
@@ -2171,7 +2176,7 @@ we will implement `JITter` trait for `SimpleModuleProvider`:
 
 ```rust
 impl JITter for builder::SimpleModuleProvider {
-    fn get_module_provider(&mut self) -> &mut builder::ModuleProvider {
+    fn get_module_provider(&mut self) -> &mut dyn builder::ModuleProvider {
         self
     }
 
@@ -2662,7 +2667,7 @@ fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettin
         parsed_tokens, "expected else");
     let else_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
-    Good(ConditionalExpr{cond_expr: box cond_expr, then_expr: box then_expr, else_expr: box else_expr}, parsed_tokens)
+    Good(ConditionalExpr{cond_expr: Box::new(cond_expr), then_expr: Box::new(then_expr), else_expr: Box::new(else_expr)}, parsed_tokens)
 }
 ```
 
@@ -2754,7 +2759,7 @@ You see what do we want, let's add the necessary part to our IR builder:
 
 ```rust
             &parser::ConditionalExpr{ref cond_expr, ref then_expr, ref else_expr} => {
-                let (cond_value, _) = try!(cond_expr.codegen(context, module_provider));
+                let (cond_value, _) =cond_expr.codegen(context, module_provider)?;
                 let zero = RealConstRef::get(&context.ty, 0.0);
                 let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
 
@@ -2766,12 +2771,12 @@ You see what do we want, let's add the necessary part to our IR builder:
                 context.builder.build_cond_br(ifcond, &then_block, &else_block);
 
                 context.builder.position_at_end(&mut then_block);
-                let (then_value, _) = try!(then_expr.codegen(context, module_provider));
+                let (then_value, _) =then_expr.codegen(context, module_provider)?;
                 context.builder.build_br(&merge_block);
                 let then_end_block = context.builder.get_insert_block();
 
                 context.builder.position_at_end(&mut else_block);
-                let (else_value, _) = try!(else_expr.codegen(context, module_provider));
+                let (else_value, _) =else_expr.codegen(context, module_provider)?;
                 context.builder.build_br(&merge_block);
                 let else_end_block = context.builder.get_insert_block();
 
@@ -2791,7 +2796,7 @@ You see what do we want, let's add the necessary part to our IR builder:
 Quite straightforward implementation of the described algorithm. Let's look at it line by line.
 
 ```rust
-                let (cond_value, _) = try!(cond_expr.codegen(context, module_provider));
+                let (cond_value, _) =cond_expr.codegen(context, module_provider)?;
                 let zero = RealConstRef::get(&context.ty, 0.0);
                 let ifcond = context.builder.build_fcmp(LLVMRealONE, cond_value, zero.to_ref(), "ifcond");
 ```
@@ -2811,12 +2816,12 @@ Generate a bunch of basic blocks and conditionally branch to `then` or `else` on
 
 ```rust
                 context.builder.position_at_end(&mut then_block);
-                let (then_value, _) = try!(then_expr.codegen(context, module_provider));
+                let (then_value, _) =then_expr.codegen(context, module_provider)?;
                 context.builder.build_br(&merge_block);
                 let then_end_block = context.builder.get_insert_block();
 
                 context.builder.position_at_end(&mut else_block);
-                let (else_value, _) = try!(else_expr.codegen(context, module_provider));
+                let (else_value, _) =else_expr.codegen(context, module_provider)?;
                 context.builder.build_br(&merge_block);
                 let else_end_block = context.builder.get_insert_block();
 ```
@@ -3080,7 +3085,7 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
-    Good(LoopExpr{var_name: var_name, start_expr: box start_expr, end_expr: box end_expr, step_expr: box step_expr, body_expr: box body_expr}, parsed_tokens)
+    Good(LoopExpr{var_name: var_name, start_expr: Box::new(start_expr), end_expr: Box::new(end_expr), step_expr: Box::new(step_expr), body_expr: Box::new(body_expr)}, parsed_tokens)
 }
 ```
 
@@ -3127,7 +3132,7 @@ We will generate similar code.
 
 ```rust
             &parser::LoopExpr{ref var_name, ref start_expr, ref end_expr, ref step_expr, ref body_expr} => {
-                let (start_value, _) = try!(start_expr.codegen(context, module_provider));
+                let (start_value, _) =start_expr.codegen(context, module_provider)?;
 
                 let preheader_block = context.builder.get_insert_block();
                 let mut function = preheader_block.get_parent();
@@ -3143,7 +3148,7 @@ We will generate similar code.
                 let old_value = context.named_values.remove(var_name);
                 context.named_values.insert(var_name.clone(), variable.to_ref());
 
-                let (end_value, _) = try!(end_expr.codegen(context, module_provider));
+                let (end_value, _) =end_expr.codegen(context, module_provider)?;
                 let zero = RealConstRef::get(&context.ty, 0.0);
                 let end_cond = context.builder.build_fcmp(LLVMRealONE, end_value, zero.to_ref(), "loopcond");
 
@@ -3153,9 +3158,9 @@ We will generate similar code.
                 context.builder.build_cond_br(end_cond, &loop_block, &after_block);
 
                 context.builder.position_at_end(&mut loop_block);
-                try!(body_expr.codegen(context, module_provider));
+               body_expr.codegen(context, module_provider)?;
 
-                let (step_value, _) = try!(step_expr.codegen(context, module_provider));
+                let (step_value, _) =step_expr.codegen(context, module_provider)?;
                 let next_value = context.builder.build_fadd(variable.to_ref(), step_value, "nextvar");
                 let loop_end_block = context.builder.get_insert_block();
                 variable.add_incoming(vec![next_value].as_mut_slice(), vec![loop_end_block].as_mut_slice());
@@ -3445,8 +3450,8 @@ which is even simpler.
 
 ```rust
             &parser::BinaryExpr(ref name, ref lhs, ref rhs) => {
-                let (lhs_value, _) = try!(lhs.codegen(context, module_provider));
-                let (rhs_value, _) = try!(rhs.codegen(context, module_provider));
+                let (lhs_value, _) =lhs.codegen(context, module_provider)?;
+                let (rhs_value, _) =rhs.codegen(context, module_provider)?;
 
                 match name.as_str() {
                     "+" => Ok((context.builder.build_fadd(lhs_value,
@@ -3619,7 +3624,7 @@ fn parse_unary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
 
     let operand = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
 
-    Good(UnaryExpr(name, box operand), parsed_tokens)
+    Good(UnaryExpr(name, Box::new(operand)), parsed_tokens)
 }
 ```
 
@@ -3628,7 +3633,7 @@ to appropriate function):
 
 ```rust
             &parser::UnaryExpr(ref operator, ref operand) => {
-                let (operand, _) = try!(operand.codegen(context, module_provider));
+                let (operand, _) =operand.codegen(context, module_provider)?;
 
                 let name = "unary".to_string() + operator;
                 let (function, _) = match module_provider.get_function(name.as_str()) {
@@ -3816,7 +3821,7 @@ else10:                                           ; preds = %else4
 > printdensity(1): printdensity(2): printdensity(3):
 . printdensity(4): printdensity(5): printdensity(9):
 . putchard(10);
-**++. 
+**++.
 => 10
 ```
 
@@ -3976,37 +3981,37 @@ entry:
 ***************************************************+++++++++++++++++++++......
 *************************************************++++++++++++++++++++.........
 ***********************************************+++++++++++++++++++...       ..
-********************************************++++++++++++++++++++......        
-******************************************++++++++++++++++++++.......         
-***************************************+++++++++++++++++++++..........        
-************************************++++++++++++++++++++++...........         
-********************************++++++++++++++++++++++++.........             
-***************************++++++++...........+++++..............             
-*********************++++++++++++....  .........................              
-***************+++++++++++++++++....   .........   ............               
-***********+++++++++++++++++++++.....                   ......                
-********+++++++++++++++++++++++.......                                        
-******+++++++++++++++++++++++++........                                       
-****+++++++++++++++++++++++++.......                                          
-***+++++++++++++++++++++++.........                                           
-**++++++++++++++++...........                                                 
-*++++++++++++................                                                 
-*++++....................                                                     
-                                                                              
-*++++....................                                                     
-*++++++++++++................                                                 
-**++++++++++++++++...........                                                 
-***+++++++++++++++++++++++.........                                           
-****+++++++++++++++++++++++++.......                                          
-******+++++++++++++++++++++++++........                                       
-********+++++++++++++++++++++++.......                                        
-***********+++++++++++++++++++++.....                   ......                
-***************+++++++++++++++++....   .........   ............               
-*********************++++++++++++....  .........................              
-***************************++++++++...........+++++..............             
-********************************++++++++++++++++++++++++.........             
-************************************++++++++++++++++++++++...........         
-***************************************+++++++++++++++++++++..........        
+********************************************++++++++++++++++++++......
+******************************************++++++++++++++++++++.......
+***************************************+++++++++++++++++++++..........
+************************************++++++++++++++++++++++...........
+********************************++++++++++++++++++++++++.........
+***************************++++++++...........+++++..............
+*********************++++++++++++....  .........................
+***************+++++++++++++++++....   .........   ............
+***********+++++++++++++++++++++.....                   ......
+********+++++++++++++++++++++++.......
+******+++++++++++++++++++++++++........
+****+++++++++++++++++++++++++.......
+***+++++++++++++++++++++++.........
+**++++++++++++++++...........
+*++++++++++++................
+*++++....................
+
+*++++....................
+*++++++++++++................
+**++++++++++++++++...........
+***+++++++++++++++++++++++.........
+****+++++++++++++++++++++++++.......
+******+++++++++++++++++++++++++........
+********+++++++++++++++++++++++.......
+***********+++++++++++++++++++++.....                   ......
+***************+++++++++++++++++....   .........   ............
+*********************++++++++++++....  .........................
+***************************++++++++...........+++++..............
+********************************++++++++++++++++++++++++.........
+************************************++++++++++++++++++++++...........
+***************************************+++++++++++++++++++++..........
 => 0
 > mandel(-0.9, -1.4, 0.02, 0.03);
 ******************************************************************************
@@ -4318,7 +4323,7 @@ Then we implement codegen for it:
                         _ => return error("destination of '=' must be a variable")
                     };
 
-                    let (value, _) = try!(rhs.codegen(context, module_provider));
+                    let (value, _) =rhs.codegen(context, module_provider)?;
 
                     let variable = match context.named_values.get(var_name) {
                         Some(vl) => *vl,
@@ -4505,7 +4510,7 @@ fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
-    Good(VarExpr{vars: vars, body_expr: box body_expr}, parsed_tokens)
+    Good(VarExpr{vars: vars, body_expr: Box::new(body_expr)}, parsed_tokens)
 }
 ```
 
@@ -4522,14 +4527,14 @@ Builder changes follow:
                 let function = context.builder.get_insert_block().get_parent();
                 for var in vars.iter() {
                     let (ref name, ref init_expr) = *var;
-                    let (init_value, _) = try!(init_expr.codegen(context, module_provider));
+                    let (init_value, _) =init_expr.codegen(context, module_provider)?;
                     let variable = create_entry_block_alloca(context, &function, name);
                     context.builder.build_store(init_value, variable);
                     old_bindings.push(context.named_values.remove(name));
                     context.named_values.insert(name.clone(), variable);
                 }
 
-                let (body_value, _) = try!(body_expr.codegen(context, module_provider));
+                let (body_value, _) =body_expr.codegen(context, module_provider)?;
 
                 let mut old_iter = old_bindings.iter();
                 for var in vars.iter() {
