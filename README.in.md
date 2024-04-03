@@ -671,7 +671,7 @@ importing necessary crates
 ```
 
 `iron-llvm` is still not published on [crates.io](https://crates.io/), this is why we use `github`
-dependency. Also after I rework what is exports (mainly basic LLVM types), explicit use of
+dependency. Also after I rework what it exports (mainly basic LLVM types), explicit use of
 `llvm-sys` will be not necessary.
 
 To generate IR we'll need these objects:
