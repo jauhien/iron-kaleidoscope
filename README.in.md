@@ -1,6 +1,8 @@
 # Status
 
-Everything works. State corresponds to the Chapter 7 of the original tutorial
+Nothing works: Rust code completely outdated. Maybe one day I'll fix it.
+
+State corresponds to the Chapter 7 of the original tutorial
 (i.e. mutable variables implemented).
 
 [TODO list](https://trello.com/b/9EZR5Hzz/iron-kaleidoscope).
